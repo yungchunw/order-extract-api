@@ -21,63 +21,95 @@ def init_config(yaml_file_path):
     return config
 
 @log_util.debug
-def get_model(config):
+def file_analyze(config, model_id, file_path):
+    """[summary]
     
+    Arguments:
+        config {[type]} -- [description]
+        model_id {[type]} -- [description]
+        file_path {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
     apim_key = config['azure']['apim_key']
-    model_loc = config['azure']['model_loc']
+    service_url = config['azure']['service_url']
+    endpoint = config['azure']['endpoint']
+  
+    post_url = endpoint + service_url + model_id + "/analyze"
+    params = {
+        "includeTextDetails": True
+    }
+    headers = {
+        # Request headers
+        'Content-Type': 'application/pdf',
+        'Ocp-Apim-Subscription-Key': apim_key,
+    }
+    with open(file_path, "rb") as f:
+        data_bytes = f.read()
     
+    try:
+        resp = post(url = post_url, data = data_bytes, headers = headers, params = params)
+        if resp.status_code != 202:
+            print("POST analyze failed:\n%s" % json.dumps(resp.json()))
+            #quit()
+        print("POST analyze succeeded:\n%s" % resp.headers)
+        get_url = resp.headers["operation-location"]
+        return get_result(config, get_url)
+    except Exception as e:
+        print("POST analyze failed:\n%s" % str(e))
+        #quit()
+        return None
+    
+@log_util.debug 
+def get_result(config, get_url):
+    apim_key = config['azure']['apim_key']
     n_tries = config['request']['n_tries']
     n_try = config['request']['n_try']
     wait_sec = config['request']['wait_sec']
     max_wait_sec = config['request']['max_wait_sec']
-    #
-    headers = {
-        # Request headers
-        'Ocp-Apim-Subscription-Key': apim_key,
-    }
     while n_try < n_tries:
         try:
-            resp = get(url = model_loc, headers = headers)
+            resp = get(url = get_url, headers = {"Ocp-Apim-Subscription-Key": apim_key})
             resp_json = resp.json()
             if resp.status_code != 200:
-                print("GET model failed (%s):\n%s" % (resp.status_code, json.dumps(resp_json)))
+                print("GET analyze results failed:\n%s" % json.dumps(resp_json))
                 #quit()
-                break
-            model_status = resp_json["modelInfo"]["status"]
-            if model_status == "ready":
-                print("Training succeeded:\n%s" % json.dumps(resp_json))
+                return None
+            status = resp_json["status"]
+            if status == "succeeded":
+                print("Analysis succeeded:\n%s" % json.dumps(resp_json))
                 #quit()
-                return resp_json["modelInfo"]["modelId"]
-            if model_status == "invalid":
-                print("Training failed. Model is invalid:\n%s" % json.dumps(resp_json))
+                return resp_json
+            if status == "failed":
+                print("Analysis failed:\n%s" % json.dumps(resp_json))
                 #quit()
-                break
-            # Training still running. Wait and retry.
+                return None
+            # Analysis still running. Wait and retry.
             time.sleep(wait_sec)
             n_try += 1
             wait_sec = min(2*wait_sec, max_wait_sec)     
         except Exception as e:
-            msg = "GET model failed:\n%s" % str(e)
+            msg = "GET analyze results failed:\n%s" % str(e)
             print(msg)
             #quit()
-    print("Train operation did not complete within the allocated time.")
+            return None
+    print("Analyze operation did not complete within the allocated time.")
     return None
 
-@log_util.debug
-def test_form_recornizer():
+
+if __name__ == '__main__':
     
     config = init_config('config.yaml')
+    model_id =  'ba8e1c65-f7d0-45f3-9c9a-d58f9c6b9b30'
+    file_path = '/Users/eltonwang/Downloads/Done/8774/testing/3921_62959_8774_3169.pdf'
+    print('Analysis file...')
+    if model_id != None:
+        output_json = file_analyze(config, model_id, file_path)
+        with open('output.json', 'w') as outfile:
+           json.dump(output_json,outfile,indent=4,ensure_ascii=False)
+    else:
+        print('No model found!!')
+
     
-    model_id = get_model(config)
-    print(model_id)
-
-
-test_form_recornizer()
-
-
-
-
-    # Endpoint URL
-    # endpoint = config['azure']['endpoint']
-    # apim_key = config['azure']['apim_key']
-    # source = config['azure']['source']
+    

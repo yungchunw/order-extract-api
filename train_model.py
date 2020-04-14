@@ -1,5 +1,6 @@
 import yaml
 import json
+import time
 from requests import post, get
 from util_lib import log_util
 
@@ -53,16 +54,61 @@ def traning_model(config):
             print("POST model failed (%s):\n%s" % (resp.status_code, json.dumps(resp.json())))
             #quit()
         print("POST model succeeded:\n%s" % resp.headers)
-        get_url = resp.headers["location"]
-        return get_url
+        model_loc = resp.headers["location"]
+        return get_model(config, model_loc)
     except Exception as e:
         print("POST model failed:\n%s" % str(e))
 
-if __name__ == '__main__':
-
-    config = init_config('config.yaml')
+@log_util.debug
+def get_model(config, model_loc):
     
-    url = traning_model(config)
-    print(url)
+    apim_key = config['azure']['apim_key']
+    
+    n_tries = config['request']['n_tries']
+    n_try = config['request']['n_try']
+    wait_sec = config['request']['wait_sec']
+    max_wait_sec = config['request']['max_wait_sec']
+    #
+    headers = {
+        # Request headers
+        'Ocp-Apim-Subscription-Key': apim_key,
+    }
+    while n_try < n_tries:
+        try:
+            resp = get(url = model_loc, headers = headers)
+            resp_json = resp.json()
+            if resp.status_code != 200:
+                print("GET model failed (%s):\n%s" % (resp.status_code, json.dumps(resp_json)))
+                #quit()
+                break
+            model_status = resp_json["modelInfo"]["status"]
+            if model_status == "ready":
+                print("Training succeeded:\n%s" % json.dumps(resp_json))
+                #quit()
+                return resp_json["modelInfo"]["modelId"]
+            if model_status == "invalid":
+                print("Training failed. Model is invalid:\n%s" % json.dumps(resp_json))
+                #quit()
+                break
+            # Training still running. Wait and retry.
+            time.sleep(wait_sec)
+            n_try += 1
+            wait_sec = min(2*wait_sec, max_wait_sec)     
+        except Exception as e:
+            msg = "GET model failed:\n%s" % str(e)
+            print(msg)
+            #quit()
+    print("Train operation did not complete within the allocated time.")
+    return None
+
+
+if __name__ == '__main__':
+    
+    config = init_config('config.yaml')
+    model_id = traning_model(config)
+    print('Model ID : {}'.format(model_id))
+    
+    
+    
 
     

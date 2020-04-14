@@ -1,10 +1,9 @@
 azure:
-  endpoint: https://dsuformrecognizer.cognitiveservices.azure.com/
-  service_url: /formrecognizer/v2.0-preview/custom/models
-  apim_key: e89238d5211d47769a254f8146faef01
-  prefix: 8774_training_2
-  model_loc: https://dsuformrecognizer.cognitiveservices.azure.com/formrecognizer/v2.0-preview/custom/models/63ba6d53-4de7-414d-b222-872835cb3534
-  source: https://dsustorage.blob.core.windows.net/formtest?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2020-04-13T09:14:33Z&st=2020-04-13T01:14:33Z&spr=https&sig=dhKYyCl9BK94Ddd07lqOSvCG0wvyWIYqYVzS0SRl1HQ%3D
+  endpoint: https://dsu-formrecognizer.cognitiveservices.azure.com/
+  service_url: formrecognizer/v2.0-preview/custom/models/
+  apim_key: f92a702ac2ba405a99c3a35067055f32
+  prefix: 8774_training
+  source: https://dsuorder.blob.core.windows.net/formrecognizer?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2020-04-14T14:19:27Z&st=2020-04-14T06:19:27Z&spr=https&sig=NPwS3wSi9Tj8cUcYsOXZWBXhKbQHc4RfP6hPkyotLrU%3D
 
 request: 
   n_tries: 15
