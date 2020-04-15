@@ -4,7 +4,7 @@ import time
 
 logger = logging.getLogger()
 fmt = '%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
-logging.basicConfig(filename='./debug.log',level=logging.DEBUG, 
+logging.basicConfig(filename='./debug.log',filemode = 'a',level=logging.DEBUG, 
                     format=fmt)
 
 

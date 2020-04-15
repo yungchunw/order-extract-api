@@ -3,7 +3,8 @@
 # Edit at https://www.gitignore.io/?templates=python
 
 ### custom setting ###
-.json
+*.json
+*.pdf
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

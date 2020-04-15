@@ -3,10 +3,16 @@ azure:
   service_url: formrecognizer/v2.0-preview/custom/models/
   apim_key: f92a702ac2ba405a99c3a35067055f32
   prefix: 8774_training
-  source: https://dsuorder.blob.core.windows.net/formrecognizer?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2020-04-14T14:19:27Z&st=2020-04-14T06:19:27Z&spr=https&sig=NPwS3wSi9Tj8cUcYsOXZWBXhKbQHc4RfP6hPkyotLrU%3D
+  source: https://dsuorder.blob.core.windows.net/formrecognizer?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2020-04-30T12:38:32Z&st=2020-04-15T04:38:32Z&spr=https&sig=QVy6s9EXH1IgwHBpp5tyw%2FBmLS9xEx6tEPYx%2BJIYuFU%3D
+
+azure_blob:
+    blob_name: "formrecognizer-output"
+    conn_str: "DefaultEndpointsProtocol=https;AccountName=dsuorder;AccountKey=xHrI1tFYJjlScP58NqwWt55+IJyKSJMmH1NX+EFgNnw2RrPX4+SNJvB7OPYDvL8f5f5aCjW+UDUH8DDEK97Ciw==;EndpointSuffix=core.windows.net"
 
 request: 
   n_tries: 15
   n_try: 0
   wait_sec: 5
   max_wait_sec: 60
+
+
