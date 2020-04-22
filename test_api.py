@@ -3,10 +3,11 @@ import yaml
 import time
 import json
 import argparse
+import fott_parsing
 from requests import get, post
 from util_lib import log_util
 from azure.storage.blob import BlobServiceClient
-
+from PyPDF2 import PdfFileWriter, PdfFileReader
 
 @log_util.debug
 def init_config(yaml_file_path):
@@ -53,13 +54,13 @@ def sync_to_azure(container_name, conn_str, data, file_name):
         log_util.logger.debug(e)
         
 
-def file_analyze(config, model_id, file_path):
+def file_analyze(config, model_id, data_bytes):
     """To get result of form recognizer 
     
     Arguments:
         config {[dict]} -- configuration obj
         model_id {[str]} -- id of form recognizer model
-        file_path {[str]} -- testing file
+        data_bytes {[byte]} -- pdf obj
     
     Returns:
         [str] -- operation-location
@@ -77,8 +78,8 @@ def file_analyze(config, model_id, file_path):
         'Content-Type': 'application/pdf',
         'Ocp-Apim-Subscription-Key': apim_key,
     }
-    with open(file_path, "rb") as f:
-        data_bytes = f.read()
+    
+    
     
     try:
         resp = post(url = post_url, data = data_bytes, headers = headers, params = params)
@@ -140,19 +141,18 @@ def get_result(config, operation_url):
     return None
 
 @log_util.debug
-def multi_recognizer(config, model_id, path, azure=True):
+def multi_recognizer(config, path, azure=True):
     """POST multiple pdf files from /data to API endpoint
     
     Arguments:
         config {[dict]} -- configuration obj
-        model_id {[str]} -- form recognizer model id
         path {[str]} -- folder path of testing data
     
     Keyword Arguments:
         azure {bool} -- output localtion,True for Azure_blob; Flase for local (default: {True})
     """
     
-    container_name = config['azure_blob']['blob_name']
+    container_name = config['azure_blob']['output']
     conn_str = config['azure_blob']['conn_str']
     
     # init data
@@ -164,13 +164,29 @@ def multi_recognizer(config, model_id, path, azure=True):
             if '.pdf' in file:
                 files_lst.append(os.path.join(r, file))
     
-    if model_id != None:
-        for _, fp in enumerate(files_lst, start=0):
-            start_time = time.time()
-            file_key = fp.split('/')[-1].split('.pdf')[0]
-            output_json = file_analyze(config, model_id, fp)
+    
+    for _, fp in enumerate(files_lst, start=0):
+        start_time = time.time()
+        pdf_name = fp.split('/')[-1].split('.pdf')[0]
+        prefix_id= fp.split('/')[-2]
+        
+        model_id = fott_parsing.get_modelid(config, prefix_id)
+        print(prefix_id, model_id)
+        inputpdf = PdfFileReader(open(fp, "rb"), strict=False)
+        log_util.logger.debug("PDF file {} with {} of pages".format(pdf_name, inputpdf.numPages))
+        
+        for i in range(inputpdf.numPages):
+            output = PdfFileWriter()
+            output.addPage(inputpdf.getPage(i))
+            with open("tmp.pdf", "wb") as outputStream:
+                output.write(outputStream)
+                
+            with open("tmp.pdf", "rb") as f:
+                data_bytes = f.read()
+
+            output_json = file_analyze(config, model_id, data_bytes)
             
-            file_name = './output/{}.json'.format(file_key)
+            file_name = './output/{}/{}_{}.json'.format(prefix_id,pdf_name,i)
             
             if azure:
                 data = json.dumps(output_json, indent=4,ensure_ascii=False)
@@ -182,10 +198,7 @@ def multi_recognizer(config, model_id, path, azure=True):
                     json.dump(output_json, outfile, indent=4, ensure_ascii=False)
                 
                 
-            log_util.logger.debug("{} - {} seconds".format(file_key,(time.time() - start_time)))
-            
-    else:
-        print('No model found!!')
+            log_util.logger.debug("{} - {} seconds".format(pdf_name,(time.time() - start_time)))
    
 def str2bool(v):
     if isinstance(v, bool):
@@ -200,8 +213,6 @@ def str2bool(v):
 def main():
     parser = argparse.ArgumentParser(description='PDF files analyze')
     parser.add_argument(
-        '-i', '--id', required=True, type=str, help='model id')
-    parser.add_argument(
         '-p', '--path', required=True, type=str, help='input path')
     parser.add_argument(
         '-azure','--azure_sync', required=False, default='True',type=str2bool,
@@ -211,7 +222,7 @@ def main():
     
     config = init_config('config.yaml')
 
-    multi_recognizer(config, args.id, args.path, args.azure_sync)
+    multi_recognizer(config, args.path, args.azure_sync)
 
 
 if __name__ == '__main__':
