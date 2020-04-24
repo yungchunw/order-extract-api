@@ -1,15 +1,20 @@
-import os
-import yaml
-import time
-import json
 import argparse
-import fott_parsing
-from information_extract import extract_info # extract information of ocr_result
-from merge_json import gen_merge_json # merge json
-from requests import get, post
-from util_lib import log_util
+import json
+import os
+import time
+
+import yaml
 from azure.storage.blob import BlobServiceClient
-from PyPDF2 import PdfFileWriter, PdfFileReader
+
+from PyPDF2 import PdfFileReader, PdfFileWriter
+from requests import get, post
+
+import fott_parsing
+from information_extract import \
+    extract_info  # extract information of ocr_result
+from merge_json import gen_merge_json  # merge json
+from util_lib import log_util
+
 
 @log_util.debug
 def init_config(yaml_file_path):
@@ -199,7 +204,6 @@ def multi_recognizer(config, path, azure=True):
                 sync_to_azure(container_name, conn_str, data, file_name)
                     
             else:
-                continue
                 with open(file_name, 'w') as outfile:   
                     json.dump(output_json_azure, outfile, indent=4, ensure_ascii=False)
                 
@@ -251,8 +255,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
-    
-
-    
-    
