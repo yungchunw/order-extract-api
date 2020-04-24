@@ -4,6 +4,8 @@ import time
 import json
 import argparse
 import fott_parsing
+from information_extract import extract_info # extract information of ocr_result
+from merge_json import gen_merge_json # merge json
 from requests import get, post
 from util_lib import log_util
 from azure.storage.blob import BlobServiceClient
@@ -175,6 +177,7 @@ def multi_recognizer(config, path, azure=True):
         inputpdf = PdfFileReader(open(fp, "rb"), strict=False)
         log_util.logger.debug("PDF file {} with {} of pages".format(pdf_name, inputpdf.numPages))
         
+        json_list = []
         for i in range(inputpdf.numPages):
             output = PdfFileWriter()
             output.addPage(inputpdf.getPage(i))
@@ -184,22 +187,43 @@ def multi_recognizer(config, path, azure=True):
             with open("tmp.pdf", "rb") as f:
                 data_bytes = f.read()
 
-            output_json = file_analyze(config, model_id, data_bytes)
-            
+            output_json_azure = file_analyze(config, model_id, data_bytes)
+            ouput_json = extract_info(output_json_azure, pdf_name)
+            json_list.append(ouput_json)
+
             file_name = './output/{}/{}_{}.json'.format(prefix_id,pdf_name,i)
             
+            # saving meatadata
             if azure:
-                data = json.dumps(output_json, indent=4,ensure_ascii=False)
+                data = json.dumps(output_json_azure, indent=4,ensure_ascii=False)
                 sync_to_azure(container_name, conn_str, data, file_name)
                     
             else:
-                
+                continue
                 with open(file_name, 'w') as outfile:   
-                    json.dump(output_json, outfile, indent=4, ensure_ascii=False)
+                    json.dump(output_json_azure, outfile, indent=4, ensure_ascii=False)
                 
                 
             log_util.logger.debug("{} - {} seconds".format(pdf_name,(time.time() - start_time)))
-   
+        
+        final_json = gen_merge_json(json_list)
+
+        final_file_name = './Final_Json/{}/{}.json'.format(prefix_id,pdf_name)
+        if azure:
+            data = json.dumps(final_json, indent=4,ensure_ascii=False)
+            sync_to_azure(container_name, conn_str, data, final_file_name)
+                    
+        else:
+            if not os.path.exists('./Final_Json'):
+                os.mkdir('./Final_Json')
+            if not os.path.exists('./Final_Json/{}'.format(prefix_id)):
+                os.mkdir('./Final_Json/{}'.format(prefix_id))
+            with open(final_file_name, 'w') as outfile:   
+                json.dump(final_json, outfile, indent=4, ensure_ascii=False)
+
+
+
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
