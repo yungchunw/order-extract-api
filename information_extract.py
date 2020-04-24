@@ -244,21 +244,31 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
 
 
 # Date
-def gen_date(dt):
+def gen_date(dt_ocr):
+    verify_date = ['2016', '2017', '2018', '2019', '2020', '2021']
+    if dt_ocr is not None:
+        for synta in ['/', ' ', '年', '月', '日']:
+            dt_ocr = dt_ocr.replace(synta, '-')
+        print(dt_ocr)
+        dt_ocr_combs = get_combinations(dt_ocr)
+        date = ''
+        for dt in dt_ocr_combs:
+            if len(dt) > 7:
+                try:
+                    dt = parse(dt)  # 解析日期時間
+                    if len(str(dt.year)) == 3:
+                        dt = dt.replace(year=dt.year + 1911)
+                    date = dt.strftime("%Y-%m-%d")
+                except:
+                    pass
+        # 驗證日期合理性
+        if date.split('-')[0] in verify_date:
+            return date
+        else:
+            date = '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
+                '-' + date.split('-')[0][-2:]
+            return date
 
-    try:
-        dt = dt.split(" ")[0]
-        dt = dt.replace(u'年', '-')
-        dt = dt.replace(u'月', '-')
-        dt = dt.replace(u'日', '-')
-        dt = parse(dt)  # 解析日期時間
-        if len(str(dt.year)) == 3:
-            dt = dt.replace(year=dt.year + 1911)
-        date_str = dt.strftime("%Y-%m-%d")
-
-        return date_str
-    except:
-        return dt
 
 # address
 
@@ -565,11 +575,10 @@ def extract_info(azure_json, file_name):
 
 
 if __name__ == '__main__':
-    #file_name = '5210_63144_9596_317_ori.json'
     start = time.time()
-    input_path = 'output_ori/'
-    output_path = 'results/'
-    file_name = '.json'
+    input_path = '/Users/Han/Desktop/FormRecognizer/information_extract/output_azure/'
+    output_path = './'
+    file_name = '6318_63036_1058_1778_0.json'
 
     file_start_ = time.time()
     print(file_name)
@@ -577,7 +586,7 @@ if __name__ == '__main__':
         ori_json = json.load(f)
     output_json = extract_info(ori_json, file_name.split('.json')[0])
 
-    with open(output_path + file_name.replace('_ori', ''), 'w') as output_file:
+    with open(output_path + file_name, 'w') as output_file:
         json.dump(output_json, output_file, ensure_ascii=False, indent=4)
 
     end = time.time()
