@@ -4,7 +4,11 @@
 
 ### custom setting ###
 *.json
+.DS_Store
 *.pdf
+!mapping_list/*.txt
+!mapping_list/*.json
+
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
