@@ -259,15 +259,23 @@ def gen_date(dt_ocr):
                     if len(str(dt.year)) == 3:
                         dt = dt.replace(year=dt.year + 1911)
                     date = dt.strftime("%Y-%m-%d")
+                    break
                 except:
                     pass
         # 驗證日期合理性
-        if date.split('-')[0] in verify_date:
-            return date
+        date_tmp = date.replace('-', '')
+        if (date.split('-')[0] in verify_date) & (len(date_tmp) > 7):
+            if (('20' + date.split('-')[2]) in verify_date) & (date.split('-')[0] != ('20' + date.split('-')[2])):
+                date = [date, '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
+                    '-' + date.split('-')[0][-2:]]
         else:
-            date = '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
-                '-' + date.split('-')[0][-2:]
-            return date
+            if date_tmp.isdigit() & (len(date_tmp) > 7):
+                date = '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
+                    '-' + date.split('-')[0][-2:]
+    else:
+        date = ''
+    print(date)
+    return date
 
 
 # address

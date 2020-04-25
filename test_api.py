@@ -128,7 +128,7 @@ def get_result(config, operation_url):
                 return None
             status = resp_json["status"]
             if status == "succeeded":
-                print("Analysis succeeded:\n%s" % json.dumps(resp_json))
+                #print("Analysis succeeded:\n%s" % json.dumps(resp_json))
                 #quit()
                 return resp_json
             if status == "failed":
@@ -204,6 +204,10 @@ def multi_recognizer(config, path, azure=True):
                 sync_to_azure(container_name, conn_str, data, file_name)
                     
             else:
+                if not os.path.exists('./output'):
+                    os.mkdir('./output')
+                if not os.path.exists('./output/{}'.format(prefix_id)):
+                    os.mkdir('./output/{}'.format(prefix_id))
                 with open(file_name, 'w') as outfile:   
                     json.dump(output_json_azure, outfile, indent=4, ensure_ascii=False)
                 
