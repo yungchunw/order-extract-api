@@ -5,63 +5,30 @@ import os
 import time
 import re
 import json
+import argparse
 import pandas as pd
 import Levenshtein
 from dateutil.parser import parse
 from hanziconv import HanziConv
 #from fuzzywuzzy import fuzz
 #sim = round(fuzz.token_sort_ratio(ocr_result, vlue),3)
+from format_transform import gen_defined_output
 
-# gen defined json format
 
-
-def gen_output_ori(output_json_azure):
-    result = output_json_azure['analyzeResult']['documentResults'][0]['fields']
-    output_json = {'header': {}, 'line': []}
-    # header
-    header_list = ['buyerName', 'supplierName', 'custPoNumber', 'poDate',
-                   'shipAddr', 'billAddr', 'deliverAddr', 'payCurrency',
-                   'paymentTerm', 'tax', 'tradeTerm']
-    for col in header_list:
-        if result[col] != None:
-            output_json['header'][col] = result[col]['text']
-        else:
-            output_json['header'][col] = None
-    # line
-    count = 0
-    for key in result.keys():
-        if 'lineNumber' in key:
-            count += 1
-    line_list = ['lineNumber', 'custPartNo', 'sellingPrice',
-                 'voQty', 'originalRequestDate']
-    for idx in range(1, count+1):
-        line_info = {}
-        for col in line_list:
-            if result[col + '#' + str(idx)] != None:
-                line_info[col] = result[col + '#' + str(idx)]['text']
-            else:
-                line_info[col] = None
-        output_json['line'].append(line_info)
-
-    # check null of line
-    count = len(output_json['line'])
-    while count > 0:
-        for idx, row in enumerate(output_json['line']):
-            is_null = 0
-            for val in row.values():
-                if val == None:
-                    is_null += 1
-            if is_null > 1:  # if two cols are null, then del
-                del output_json['line'][idx]
-                break
-        count -= 1
-    # output file
-    return output_json
-
-# load mapping_list
+# --------------------functions--------------------
 
 
 def load_mapping_list():
+    """
+    loading all mapping list
+
+    Arguments:
+
+
+    Returns:
+        all mapping list
+
+    """
     # buyerName
     with open('mapping_list/LIST_buyerName.json', 'r') as f:
         buyerName_list = json.load(f)
@@ -106,10 +73,20 @@ def load_mapping_list():
         address_list, payCurrency_list, paymentTerm_list, tax_list, tradeTerm_list, \
         lineNumber_list, active_item
 
-# combainations of string
-
 
 def get_combinations(string, length=0):
+    """
+    generating combinations of a string
+
+    Arguments:
+        string -- str
+        length -- length of 'return string', if 0 return all combinations
+
+    Returns:
+        combinations of string
+
+    """
+    
     combs = []
     if length == 0:
         for i in range(len(string)):
@@ -121,17 +98,41 @@ def get_combinations(string, length=0):
 
     return combs
 
+
 # --------------------header--------------------
-# buyerNme
 
 
 def gen_buyerName(custID, buyerName_list):
-    return buyerName_list[custID][0]
+    """
+    buyerName
 
-# supplierName
+    Arguments:
+        custID -- cust id
+        buyerName_list -- a mapping list of buyerName
+
+    Returns:
+        a value of buyerName
+
+    """
+    
+    return buyerName_list[custID][0]
 
 
 def gen_supplierName(ori_json, ouID, supplierName_all, supplierName_list, threshold=0.5):
+    """
+    supplierName
+
+    Arguments:
+        ori_json -- a defined json
+        ouID -- supplier id
+        supplierName_all -- a list of all supplier's name in WPG
+        supplierName_list -- a mapping list of supplierName
+        thershold - folat
+
+    Returns:
+        a value of supplierName
+
+    """
     # 名稱清單 supplierName_all
     # 比對清單 supplierName_list
     supplier_name_ocr = ori_json['header']['supplierName']
@@ -165,10 +166,20 @@ def gen_supplierName(ori_json, ouID, supplierName_all, supplierName_list, thresh
     else:  # 相似度皆小於threshold，直接從比對清單中取值
         return supplierName_list[ouID][0]
 
-# custPoNumber
-
 
 def get_format_of_poNum(custID, custPoNumber_list):
+    """
+    generating formats of custPoNumber
+
+    Arguments:
+        custID -- cust id
+        custPoNumber_list -- a list of custPoNumber history in ERP
+
+    Returns:
+        formats of custPoNumber
+
+    """
+    
     poNum_his = custPoNumber_list[custID]
     # dict by length
     length_dict = {}
@@ -206,6 +217,19 @@ def get_format_of_poNum(custID, custPoNumber_list):
 
 
 def gen_custPoNumber(ori_json, custID, custPoNumber_list):
+    """
+    custPoNumber
+
+    Arguments:
+        ori_json -- a defined json
+        custID -- cust id
+        custPoNumber_list -- a list of custPoNumber history in ERP
+
+    Returns:
+        a value of custPoNumber
+
+    """
+    
     po_num_format = get_format_of_poNum(custID, custPoNumber_list)
     # check ocr by format
     po_num_ocr = ori_json['header']['custPoNumber']
@@ -243,8 +267,17 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
         return custPoNumber
 
 
-# Date
 def gen_date(dt_ocr):
+    """
+    poDate, originalRequestDate
+
+    Arguments:
+        dt_ocr -- ocr result of date
+
+    Returns:
+        a value of poDate or originalRequestDate
+
+    """
     verify_date = ['2016', '2017', '2018', '2019', '2020', '2021']
     if dt_ocr is not None:
         for synta in ['/', ' ', '年', '月', '日']:
@@ -278,10 +311,20 @@ def gen_date(dt_ocr):
     return date
 
 
-# address
-
-
 def address_sim(addr_ocr, address_list, custID, code):
+    """
+    calculate similarity of address
+
+    Arguments:
+        addr_ocr -- a ocr result of address
+        address_list -- a mapping list of address
+        custID -- cust id
+        code -- SHIP_TO or BILL_TO or DELIVER_TO
+
+    Returns:
+        the address in address_list which has highest similarity, similarity 
+
+    """
     sim = 0
     addr_find = ''
     if addr_ocr is not None:
@@ -297,6 +340,21 @@ def address_sim(addr_ocr, address_list, custID, code):
 
 
 def gen_address(ori_json, custID, ouID, address_list, threshold):
+    """
+    shipAddr, billAddr, deliverAddr
+
+    Arguments:
+        ori_json -- a defined json
+        custID -- cust id
+        ouID -- supplier id
+        address_list -- a mapping list of address
+        threshold -- float
+
+    Returns:
+        values of shipAddr, billAddr, deliverAddr
+
+    """
+    
     # shipAddr
     shipAddr_ocr = ori_json['header']['shipAddr']
     shipAddr, shipAddr_sim = address_sim(
@@ -325,17 +383,38 @@ def gen_address(ori_json, custID, ouID, address_list, threshold):
 
     return shipAddr, billAddr, deliverAddr
 
-# payCurrency
-
 
 def gen_payCurrency(key, payCurrency_list):
+    """
+    payCurrency
+
+    Arguments:
+        key -- combination of cust_id + ou_id
+        payCurrency_list -- a mapping list of payCurrency
+
+    Returns:
+        a value of payCurrency
+
+    """
 
     return payCurrency_list[key]
 
-# paymentTerm & tax & tradeTerm
-
 
 def gen_term(ori_json, custID, ouID, term_list, term_name):
+    """
+    paymentTerm, tax, tradetTerm
+
+    Arguments:
+        line_ocr -- a dictionary of line
+        custID -- cust id
+        term_list -- a mapping list of term
+        term_name -- paymentTerm or tax or tradeTerm
+
+    Returns:
+        a value of paymentTerm or tax or tradeTerm
+
+    """
+    
     if (custID + '_' + ouID) in term_list.keys():
         if ori_json['header'][term_name] is None:
             return term_list[custID + '_' + ouID]
@@ -346,11 +425,23 @@ def gen_term(ori_json, custID, ouID, term_list, term_name):
     else:  # 若比對清單無此key
         return ori_json['header'][term_name]
 
+
 # --------------------line--------------------
-# lineNumber
 
 
 def gen_lineNumber(line_ocr, custID, lineNumber_list):
+    """
+    lineNumber
+
+    Arguments:
+        line_ocr -- a dictionary of line
+        custID -- cust id
+        lineNumber_list -- a list of lineNumber history in ERP
+
+    Returns:
+        a value of lineNumber
+
+    """
     if custID in lineNumber_list.keys():
         lineNum_his = lineNumber_list[custID][-1]
     else:
@@ -412,10 +503,20 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
 
     return lineNumber
 
-# custPartNo
-
 
 def gen_custPartNo(line_ocr, custID, active_item):
+    """
+    custPartNo
+
+    Arguments:
+        line_ocr -- a dictionary of line
+        custID -- cust id
+        active_item -- a mapping list of actived items
+
+    Returns:
+        a value of custPartNo
+
+    """
     partNo_ocr = line_ocr['custPartNo']
     custPartNo = ''
     print('searching item: %s' % (partNo_ocr))
@@ -475,10 +576,18 @@ def gen_custPartNo(line_ocr, custID, active_item):
                     custPartNo = item
     return custPartNo
 
-# sellingPrice
-
 
 def gen_sellingPrice(line_ocr):
+    """
+    sellingPrice
+
+    Arguments:
+        line_ocr -- a dictionary of line
+
+    Returns:
+        a value of sellingPrice
+
+    """
     price_ocr = line_ocr['sellingPrice']
     if price_ocr is not None:
         for syntax in ['$', ',']:  # remove syntax
@@ -498,10 +607,18 @@ def gen_sellingPrice(line_ocr):
             sellingPrice.append(price)
         return float('.'.join(sellingPrice))
 
-# voQty
-
 
 def gen_voQty(line_ocr):
+    """
+    voQty
+
+    Arguments:
+        line_ocr -- a dictionary of line
+
+    Returns:
+        a value of voQty
+
+    """
     qty_ocr = line_ocr['voQty']
     #print('voQty extract...')
     if qty_ocr is not None:
@@ -511,12 +628,12 @@ def gen_voQty(line_ocr):
             dict.fromkeys(qty_ocr.split(' ')))])  # drop duplicates
         # print(qty_ocr)
         qty_ocr = qty_ocr.split('.')[0]
-        qty_ocr = [re.search('[0-9]*', qty_ocr).group()]
+        qty_ocr = [re.search('[0-9]*', qty_ocr).group()] # only consider number 0-9 of qty_ocr
         # print(qty_ocr)
         voQty = 0
         max_length = 0
         for qty_ocr_idx in qty_ocr:
-            qty_ocr_combs = get_combinations(qty_ocr_idx)
+            qty_ocr_combs = get_combinations(qty_ocr_idx) # generate different combinations of string
             for string in qty_ocr_combs:
                 if string.isdigit():
                     if len(string) > max_length:
@@ -527,8 +644,20 @@ def gen_voQty(line_ocr):
         return 0
 
 
-def extract_info(azure_json, file_name):
-    ori_json = gen_output_ori(azure_json)
+def extract_info(raw_json, file_name):
+    """
+    main function of information_extract.py.
+    
+
+    Arguments:
+        raw_json -- an output json from different services
+        file_name -- the input file name
+
+    Returns:
+        output_json - a json file after information extracted
+
+    """
+    ori_json = gen_defined_output.azure_to_ori(raw_json)
     # mapping list loading
     print('mapping list loading...')
     buyerName_list, supplierName_all, supplierName_list, custPoNumber_list, \
@@ -583,19 +712,33 @@ def extract_info(azure_json, file_name):
 
 
 if __name__ == '__main__':
+    """
+    
+    Running in local.
+    
+    Arguments:
+        path  -- path of input json file
+        
+    output:
+        output_json -- a json file after information extracted
+
+    """
     start = time.time()
-    input_path = '/Users/Han/Desktop/FormRecognizer/information_extract/output_azure/'
-    output_path = './'
-    file_name = '6318_63036_1058_1778_0.json'
+    
 
-    file_start_ = time.time()
-    print(file_name)
-    with open(input_path + file_name, 'r') as f:
+    parser = argparse.ArgumentParser(description='information extract')
+    parser.add_argument(
+         '-p', '--path', required=True, type=str, help='input path')
+    args = parser.parse_args()
+    
+    input_file = args.path
+
+    print('{}\n'.format(input_file.split('/')[-1]))
+    with open(input_file, 'r') as f:
         ori_json = json.load(f)
-    output_json = extract_info(ori_json, file_name.split('.json')[0])
+    output_json = extract_info(ori_json, input_file.split('/')[-1].split('.json')[0])
 
-    with open(output_path + file_name, 'w') as output_file:
+    with open('./' + input_file.split('/')[-1], 'w') as output_file:
         json.dump(output_json, output_file, ensure_ascii=False, indent=4)
 
-    end = time.time()
-    print('total time:', (end - start))
+    print('total time:', (time.time() - start))
