@@ -278,7 +278,7 @@ def gen_date(dt_ocr):
         a value of poDate or originalRequestDate
 
     """
-    verify_date = ['2016', '2017', '2018', '2019', '2020', '2021']
+    verify_date = ['2016', '2017', '2018', '2019', '2020', '2021', '2022']
     if dt_ocr is not None:
         for synta in ['/', ' ', '年', '月', '日']:
             dt_ocr = dt_ocr.replace(synta, '-')
@@ -297,10 +297,16 @@ def gen_date(dt_ocr):
                     pass
         # 驗證日期合理性
         date_tmp = date.replace('-', '')
+    
         if (date.split('-')[0] in verify_date) & (len(date_tmp) > 7):
+            pass 
+        
             if (('20' + date.split('-')[2]) in verify_date) & (date.split('-')[0] != ('20' + date.split('-')[2])):
-                date = [date, '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
-                    '-' + date.split('-')[0][-2:]]
+                # 如果"日/月/年"跟“年/月/日”兩者不相同則兩個日期都產出
+                #date = [date, '20' + date.split('-')[2] + '-' + date.split('-')[1] + '-' + date.split('-')[0][-2:]]
+                # 警告日月年與年月日可能相反
+                #date += '(Warning)'
+                pass
         else:
             if date_tmp.isdigit() & (len(date_tmp) > 7):
                 date = '20' + date.split('-')[2] + '-' + date.split('-')[1] + \
@@ -311,7 +317,7 @@ def gen_date(dt_ocr):
     return date
 
 
-def address_sim(addr_ocr, address_list, custID, code):
+def address_sim(addr_ocr, address_list, custID, code, threshold=0.2):
     """
     calculate similarity of address
 
@@ -327,15 +333,33 @@ def address_sim(addr_ocr, address_list, custID, code):
     """
     sim = 0
     addr_find = ''
-    if addr_ocr is not None:
+    if (addr_ocr is not None) & (addr_ocr != ''):
         addr_ocr = HanziConv.toTraditional(addr_ocr)  # ocr地址轉換為繁體
         for idx in range(len(address_list[custID]['SITE_USE_CODE'])):
             if address_list[custID]['SITE_USE_CODE'][idx] == code:
-                addr = address_list[custID]['ADDRESS2'][idx] + \
+                # ADDRESS 2, 3, 4
+                addr1 = address_list[custID]['ADDRESS2'][idx] + \
                     address_list[custID]['ADDRESS3'][idx] + address_list[custID]['ADDRESS4'][idx]
-                if Levenshtein.ratio(addr_ocr, addr) > sim:
-                    sim = Levenshtein.ratio(addr_ocr, addr)
-                    addr_find = addr
+                # ADDRESS 2, 3
+                addr2 = address_list[custID]['ADDRESS2'][idx] + \
+                    address_list[custID]['ADDRESS3'][idx]
+                # ADDRESS 2
+                addr3 = address_list[custID]['ADDRESS2'][idx]
+  
+                sim1 = Levenshtein.ratio(addr_ocr, addr1)
+                sim2 = Levenshtein.ratio(addr_ocr, addr2)
+                sim3 = Levenshtein.ratio(addr_ocr, addr3)
+
+                addrs = [addr1, addr2, addr3]
+                for idx, sim_i in enumerate([sim1, sim2, sim3]):
+                    if sim_i > sim:
+                        sim = sim_i
+                        addr_find = addrs[idx]
+                
+            
+      
+        
+    #print(addr_find, sim)
     return addr_find, sim
 
 
@@ -677,7 +701,6 @@ def extract_info(raw_json, file_name):
         ori_json, ouID, supplierName_all, supplierName_list)
     output_json['header']['custPoNumber'] = gen_custPoNumber(
         ori_json, custID, custPoNumber_list)
-    # undo
     output_json['header']['poDate'] = gen_date(ori_json['header']['poDate'])
     output_json['header']['shipAddr'], output_json['header']['billAddr'], \
         output_json['header']['deliverAddr'] = gen_address(
@@ -695,19 +718,26 @@ def extract_info(raw_json, file_name):
     # line
     output_json['line'] = []
     count = 1
+    request_date = ''
     for row in ori_json['line']:
         print('line', count)
         line_info = {}
         line_info['lineNumber'] = gen_lineNumber(row, custID, lineNumber_list)
-        # in processing
         line_info['custPartNo'] = gen_custPartNo(row, custID, active_item)
         print('custPartN is %s' % line_info['custPartNo'])
         line_info['sellingPrice'] = gen_sellingPrice(row)
         line_info['originalRequestDate'] = gen_date(row['originalRequestDate'])
-        # undo
+        # 如果oringinalRequestDate為空值，則套用第一個不為null之日期。
+        if (request_date == '') & ((line_info['originalRequestDate'] != '') or (line_info['originalRequestDate'] is not None)):
+            request_date = line_info['originalRequestDate']
         line_info['voQty'] = gen_voQty(row)
         output_json['line'].append(line_info)
         count += 1
+    # update oringinalRequestDate (無腦補日期)
+    for k in range(len(output_json['line'])):
+        if ((output_json['line'][k]['originalRequestDate'] == '') or (output_json['line'][k]['originalRequestDate'] is None)):
+            output_json['line'][k]['originalRequestDate'] = request_date
+    
     return output_json
 
 
