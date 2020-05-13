@@ -6,7 +6,7 @@ azure:
   source: https://dsuorder.blob.core.windows.net/formrecognizer?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2020-04-30T12:38:32Z&st=2020-04-15T04:38:32Z&spr=https&sig=QVy6s9EXH1IgwHBpp5tyw%2FBmLS9xEx6tEPYx%2BJIYuFU%3D
 
 azure_blob:
-    source: "formrecognizer-poc"
+    source: "formrecognizer-p5"
     output: "formrecognizer-output"
     conn_str: "DefaultEndpointsProtocol=https;AccountName=dsuorder;AccountKey=xHrI1tFYJjlScP58NqwWt55+IJyKSJMmH1NX+EFgNnw2RrPX4+SNJvB7OPYDvL8f5f5aCjW+UDUH8DDEK97Ciw==;EndpointSuffix=core.windows.net"
 

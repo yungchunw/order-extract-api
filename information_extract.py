@@ -29,37 +29,49 @@ def load_mapping_list():
         all mapping list
 
     """
+    mapping_list_all = {}
+    
     # buyerName
     with open('mapping_list/LIST_buyerName.json', 'r') as f:
         buyerName_list = json.load(f)
+        mapping_list_all['buyerName_list'] = buyerName_list
     # supplierName
     supplierName_all = []
     with open('mapping_list/supplyer_name.txt', 'r') as f:
         for line in f:
             supplierName_all.append(line.split('\n')[0])
+            mapping_list_all['supplierName_all'] = supplierName_all
     with open('mapping_list/LIST_supplierName.json', 'r') as f:
         supplierName_list = json.load(f)
+        mapping_list_all['supplierName_list'] = supplierName_list
     # custPoNumber
     with open('mapping_list/custPoNumber_his.json', 'r') as f:
         custPoNumber_list = json.load(f)
+        mapping_list_all['custPoNumber_list'] = custPoNumber_list
     # address
     with open('mapping_list/LIST_address.json', 'r') as f:
         address_list = json.load(f)
+        mapping_list_all['address_list'] = address_list
     # payCurrency
     with open('mapping_list/LIST_payCurrency.json', 'r') as f:
         payCurrency_list = json.load(f)
+        mapping_list_all['payCurrency_list'] = payCurrency_list
     # paymentTerm
     with open('mapping_list/LIST_paymentTerm.json', 'r') as f:
         paymentTerm_list = json.load(f)
+        mapping_list_all['paymentTerm_list'] = paymentTerm_list
     # tax
     with open('mapping_list/LIST_tax.json', 'r') as f:
         tax_list = json.load(f)
+        mapping_list_all['tax_list'] = tax_list
     # tradeTerm
     with open('mapping_list/LIST_tradeTerm.json', 'r') as f:
         tradeTerm_list = json.load(f)
+        mapping_list_all['tradeTerm_list'] = tradeTerm_list
     # lineNumber
     with open('mapping_list/lineNumber_his.json', 'r') as file:
         lineNumber_list = json.load(file)
+        mapping_list_all['lineNumber_list'] = lineNumber_list
 
     # load active cust items
     active_item = pd.read_csv(
@@ -68,10 +80,11 @@ def load_mapping_list():
     active_item.drop_duplicates(inplace=True)
     active_item.reset_index(drop=True, inplace=True)
     # print(active_item.info())
+    
+    mapping_list_all['active_item'] = active_item
 
-    return buyerName_list, supplierName_all, supplierName_list, custPoNumber_list, \
-        address_list, payCurrency_list, paymentTerm_list, tax_list, tradeTerm_list, \
-        lineNumber_list, active_item
+    
+    return mapping_list_all
 
 
 def get_combinations(string, length=0):
@@ -481,14 +494,17 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
         else:
             typeOfchar = lineNum_his[i]
         lineNum_format[len(lineNum_his)].append(typeOfchar)
-    # 可能為 1,2,3...,10,...，就需要有兩種format。
+    # 可能為 1,2,3...,10,...,101， 需要有3種format
     if (len(lineNum_format) == 1) & (list(lineNum_format.keys())[0] == 1):
         lineNum_format[2] = ['\\d', '\\d']
+        lineNum_format[3] = ['\\d', '\\d', '\\d']
     elif (len(lineNum_format) == 1) & (list(lineNum_format.keys())[0] == 2):
         if (lineNum_format[2][0] in ['.', '-', '_']) or (lineNum_format[2][1] in ['.', '-', '_']):
             pass
         else:
-            lineNum_format[2] = ['\\d']
+            lineNum_format[1] = ['\\d']
+            lineNum_format[3] = ['\\d', '\\d', '\\d']
+            
     # gen lineNumber
     lineNumber = ''
     lineNum_ocr = line_ocr['lineNumber']
@@ -503,13 +519,14 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
                 if (lineNum_ocr[i] != lineNum_format[length][i]) & (lineNum_format[length][i] != '\\d'):
                     form = False
                     break
-            if form:
+            # 取格式較長的為主
+            if form & (len(lineNumber) < length):
                 lineNumber = lineNum_ocr[:length]
+    
     else:
         lineNum_ocr = line_ocr['custPartNo']  # 可能label到custPartNo中
         if lineNum_ocr is not None:
-            lineNum_ocr = ''.join([item for item in list(
-                dict.fromkeys(lineNum_ocr.split(' ')))])  # drop duplicates
+            lineNum_ocr = lineNum_ocr.split(' ')[0] # 通常在custPartNo前面
             for length in lineNum_format:
                 form = True
                 if length > len(lineNum_ocr):
@@ -519,12 +536,15 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
                     if (lineNum_ocr[i] != lineNum_format[length][i]) & (lineNum_format[length][i] != '\\d'):
                         form = False
                         break
-                if form:
+                # 取格式較長的為主
+                if form & (len(lineNumber) < length):
                     lineNumber = lineNum_ocr[:length]
+                    
         for synta in ['.', '-', '_']:
             if (synta not in lineNumber) & (not lineNumber.isdigit()):
                 lineNumber = ''
-
+    print('format: {}'.format(lineNum_format))
+    print(lineNum_ocr, lineNumber)
     return lineNumber
 
 
@@ -589,15 +609,15 @@ def gen_custPartNo(line_ocr, custID, active_item):
                         sim_custItem = sim_tmp
                         custPartNo = item
                 sim_item = 0
-            for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
-                sim_tmp = Levenshtein.ratio(partNo_ocr, item)
-                if sim_tmp > 0.9:
-                    sim_item = sim_tmp
-                    custPartNo = item
-                    return custPartNo
-                elif sim_tmp > sim_item:
-                    sim_item = sim_tmp
-                    custPartNo = item
+                for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
+                    sim_tmp = Levenshtein.ratio(partNo_ocr, item)
+                    if sim_tmp > 0.9:
+                        sim_item = sim_tmp
+                        custPartNo = item
+                        return custPartNo
+                    elif sim_tmp > sim_item:
+                        sim_item = sim_tmp
+                        custPartNo = item
     return custPartNo
 
 
@@ -613,9 +633,10 @@ def gen_sellingPrice(line_ocr):
 
     """
     price_ocr = line_ocr['sellingPrice']
+    price = 0.0
     if price_ocr is not None:
         for syntax in ['$', ',']:  # remove syntax
-            price_ocr.replace(syntax, '')
+            price_ocr = price_ocr.replace(syntax, '')
         price_ocr = ''.join([item for item in list(
             dict.fromkeys(price_ocr.split(' ')))])  # drop duplicates
         sellingPrice = []
@@ -628,9 +649,18 @@ def gen_sellingPrice(line_ocr):
                     if len(string) > max_length:
                         max_length = len(string)
                         price = string
+            if price == '':
+                price = '0'
             sellingPrice.append(price)
-        return float('.'.join(sellingPrice))
-
+            print(sellingPrice)
+        # 如果目前邏輯無法驗證，則出0
+        if len(sellingPrice) > 2:
+            price = 0.0
+        else:
+            price = float('.'.join(sellingPrice))
+    print(price_ocr, price)
+    return price
+        
 
 def gen_voQty(line_ocr):
     """
@@ -668,7 +698,7 @@ def gen_voQty(line_ocr):
         return 0
 
 
-def extract_info(raw_json, file_name):
+def extract_info(raw_json, file_name, mapping_list_all):
     """
     main function of information_extract.py.
     
@@ -683,13 +713,21 @@ def extract_info(raw_json, file_name):
     """
     ori_json = gen_defined_output.azure_to_ori(raw_json)
     # mapping list loading
-    print('mapping list loading...')
-    buyerName_list, supplierName_all, supplierName_list, custPoNumber_list, \
-        address_list, payCurrency_list, paymentTerm_list, tax_list, tradeTerm_list, \
-        lineNumber_list, active_item = load_mapping_list()
-
-    custID = file_name.split('_')[2]
-    ouID = file_name.split('_')[3]
+    buyerName_list = mapping_list_all['buyerName_list']
+    supplierName_all = mapping_list_all['supplierName_all']
+    supplierName_list = mapping_list_all['supplierName_list']
+    custPoNumber_list = mapping_list_all['custPoNumber_list']
+    address_list = mapping_list_all['address_list']
+    payCurrency_list = mapping_list_all['payCurrency_list']
+    paymentTerm_list = mapping_list_all['paymentTerm_list']
+    tax_list = mapping_list_all['tax_list']
+    tradeTerm_list = mapping_list_all['tradeTerm_list']
+    lineNumber_list = mapping_list_all['lineNumber_list']
+    active_item = mapping_list_all['active_item']
+    
+    # custID 與 ouID 位置可能會變
+    custID = file_name.split('_')[0]
+    ouID = file_name.split('_')[1]
     key = custID + '_' + ouID
 
     output_json = {}
@@ -764,9 +802,11 @@ if __name__ == '__main__':
     input_file = args.path
 
     print('{}\n'.format(input_file.split('/')[-1]))
+    print('mapping list loading...')
+    mapping_list_all = load_mapping_list()
     with open(input_file, 'r') as f:
         ori_json = json.load(f)
-    output_json = extract_info(ori_json, input_file.split('/')[-1].split('.json')[0])
+    output_json = extract_info(ori_json, input_file.split('/')[-1].split('.json')[0], mapping_list_all)
 
     with open('./' + input_file.split('/')[-1], 'w') as output_file:
         json.dump(output_json, output_file, ensure_ascii=False, indent=4)

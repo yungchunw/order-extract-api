@@ -23,6 +23,11 @@ def gen_merge_json(json_list):
                         output_json[j]['line'].extend(json_i['line'])
                         is_append = False
                         break
+                # 如果為null 一樣合併 (多頁無header的情況下)
+                elif (json_i['header']['custPoNumber'] == '') or (json_i['header']['custPoNumber'] is None) or (json_j['header']['custPoNumber'] == '') or (json_j['header']['custPoNumber'] is None) :
+                    output_json[j]['line'].extend(json_i['line'])
+                    is_append = False
+                    break
             if is_append:
                 output_json.append(json_i)
     return output_json

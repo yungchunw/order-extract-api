@@ -5,6 +5,8 @@
 ### custom setting ###
 *.json
 .DS_Store
+mapping_list/.DS_Store
+batch_extract.py
 *.pdf
 !mapping_list/*.txt
 !mapping_list/*.json

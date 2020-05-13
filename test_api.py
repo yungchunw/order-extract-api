@@ -11,7 +11,7 @@ from requests import get, post
 
 import fott_parsing
 from information_extract import \
-    extract_info  # extract information of ocr_result
+    extract_info, load_mapping_list  # extract information of ocr_result
 from merge_json import gen_merge_json  # merge json
 from util_lib import log_util
 
@@ -164,7 +164,10 @@ def multi_recognizer(config, path, azure=True):
     
     # init data
     files_lst = []
-
+    
+    print('mapping list loading...')
+    mapping_list_all = load_mapping_list() # mapping list loading
+    
     # r=root, d=directories, f = files
     for r, d, f in os.walk(path):
         for file in f:
@@ -175,7 +178,7 @@ def multi_recognizer(config, path, azure=True):
     for _, fp in enumerate(files_lst, start=0):
         start_time = time.time()
         pdf_name = fp.split('/')[-1].split('.pdf')[0]
-        prefix_id= fp.split('/')[-2]
+        prefix_id= pdf_name.split('_')[0]
         
         model_id = fott_parsing.get_modelid(config, prefix_id)
         print(prefix_id, model_id)
@@ -193,10 +196,10 @@ def multi_recognizer(config, path, azure=True):
                 data_bytes = f.read()
 
             output_json_azure = file_analyze(config, model_id, data_bytes)
-            ouput_json = extract_info(output_json_azure, pdf_name)
+            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all)
             json_list.append(ouput_json)
 
-            file_name = './output/{}/{}_{}.json'.format(prefix_id,pdf_name,i)
+            file_name = './output/{}_{}.json'.format(pdf_name,i)
             
             # saving meatadata
             if azure:
@@ -206,8 +209,10 @@ def multi_recognizer(config, path, azure=True):
             else:
                 if not os.path.exists('./output'):
                     os.mkdir('./output')
-                if not os.path.exists('./output/{}'.format(prefix_id)):
-                    os.mkdir('./output/{}'.format(prefix_id))
+# =============================================================================
+#                 if not os.path.exists('./output/{}'.format(prefix_id)):
+#                     os.mkdir('./output/{}'.format(prefix_id))
+# =============================================================================
                 with open(file_name, 'w') as outfile:   
                     json.dump(output_json_azure, outfile, indent=4, ensure_ascii=False)
                 
@@ -216,7 +221,7 @@ def multi_recognizer(config, path, azure=True):
         
         final_json = gen_merge_json(json_list)
 
-        final_file_name = './Final_Json/{}/{}.json'.format(prefix_id,pdf_name)
+        final_file_name = './Final_Json/{}.json'.format(pdf_name)
         if azure:
             data = json.dumps(final_json, indent=4,ensure_ascii=False)
             sync_to_azure(container_name, conn_str, data, final_file_name)
@@ -224,8 +229,10 @@ def multi_recognizer(config, path, azure=True):
         else:
             if not os.path.exists('./Final_Json'):
                 os.mkdir('./Final_Json')
-            if not os.path.exists('./Final_Json/{}'.format(prefix_id)):
-                os.mkdir('./Final_Json/{}'.format(prefix_id))
+# =============================================================================
+#             if not os.path.exists('./Final_Json/{}'.format(prefix_id)):
+#                 os.mkdir('./Final_Json/{}'.format(prefix_id))
+# =============================================================================
             with open(final_file_name, 'w') as outfile:   
                 json.dump(final_json, outfile, indent=4, ensure_ascii=False)
 
