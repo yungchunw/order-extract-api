@@ -11,6 +11,9 @@ def gen_merge_json(json_list):
         merged json -- a json or list of json
     """
     print('merging json...')
+    header_list = ['buyerName', 'supplierName', 'poDate', 'custPoNumber', 
+                       'shipAddr', 'billAddr', 'deliverAddr', 'payCurrency',
+                       'paymentTerm', 'tax', 'tradeTerm']
     output_json = []
     for i, json_i in enumerate(json_list):
         if (i == 0): # first time
@@ -18,13 +21,28 @@ def gen_merge_json(json_list):
         else:
             for j ,json_j in enumerate(output_json):
                 is_append = True
-                if (json_i['header']['custPoNumber'] is not None) & (json_j['header']['custPoNumber'] is not None):
+                print(json_i['header']['custPoNumber'], json_j['header']['custPoNumber'])
+                if (json_i['header']['custPoNumber'] != '') & (json_j['header']['custPoNumber'] != ''):
                     if json_i['header']['custPoNumber'] == json_j['header']['custPoNumber']:
+                        # header
+                        for col in header_list:
+                            if (json_i['header'][col] == '') & (output_json[j]['header'][col] == ''):
+                                output_json[j]['header'][col] = json_j['header'][col]
+                            elif (json_j['header'][col] == '') & (output_json[j]['header'][col] == ''):
+                                output_json[j]['header'][col] = json_i['header'][col]
+                        # line
                         output_json[j]['line'].extend(json_i['line'])
                         is_append = False
                         break
                 # 如果為null 一樣合併 (多頁無header的情況下)
-                elif (json_i['header']['custPoNumber'] == '') or (json_i['header']['custPoNumber'] is None) or (json_j['header']['custPoNumber'] == '') or (json_j['header']['custPoNumber'] is None) :
+                elif (json_i['header']['custPoNumber'] == '') or (json_j['header']['custPoNumber'] == ''):
+                    # header
+                    for col in header_list:
+                        if (json_i['header'][col] == '') & (output_json[j]['header'][col] == ''):
+                            output_json[j]['header'][col] = json_j['header'][col]
+                        elif (json_j['header'][col] == '') & (output_json[j]['header'][col] == ''):
+                            output_json[j]['header'][col] = json_i['header'][col]
+                    # line
                     output_json[j]['line'].extend(json_i['line'])
                     is_append = False
                     break

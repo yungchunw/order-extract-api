@@ -53,7 +53,7 @@ class gen_defined_output:
                 for val in row.values():
                     if val == None:
                         is_null += 1
-                if is_null > 1:  # if two cols are null, then del
+                if is_null > 2:  # if three cols are null, then del
                     del output_json['line'][idx]
                     break
             count -= 1

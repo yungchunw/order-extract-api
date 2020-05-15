@@ -83,7 +83,7 @@ def file_analyze(config, model_id, data_bytes):
     headers = {
         # Request headers
         'Content-Type': 'application/pdf',
-        'Ocp-Apim-Subscription-Key': apim_key,
+        'Ocp-Apim-Subscription-Key': apim_key
     }
     
     

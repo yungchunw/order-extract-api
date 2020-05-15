@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import os
@@ -149,14 +149,15 @@ def gen_supplierName(ori_json, ouID, supplierName_all, supplierName_list, thresh
     # 名稱清單 supplierName_all
     # 比對清單 supplierName_list
     supplier_name_ocr = ori_json['header']['supplierName']
+    print(supplier_name_ocr)
     sim_1 = 0
     name_find_1 = ''
     if supplier_name_ocr is not None:
         supplier_name_ocr = HanziConv.toTraditional(
             supplier_name_ocr)  # ocr轉換為繁體
         for name in supplierName_all:
-            if Levenshtein.ratio(supplier_name_ocr, name) > sim_1:
-                sim_1 = Levenshtein.ratio(supplier_name_ocr, name)
+            if Levenshtein.ratio(supplier_name_ocr.lower(), name.lower()) > sim_1:
+                sim_1 = Levenshtein.ratio(supplier_name_ocr.lower(), name.lower())
                 name_find_1 = name
     else:  # 若ocr為null，直接從比對清單中取值
         return supplierName_list[ouID][0]
@@ -164,9 +165,13 @@ def gen_supplierName(ori_json, ouID, supplierName_all, supplierName_list, thresh
     sim_2 = 0
     name_find_2 = ''
     for name in supplierName_list[ouID]:
-        if Levenshtein.ratio(supplier_name_ocr, name) > sim_2:
+        if Levenshtein.ratio(supplier_name_ocr.lower(), name.lower()) > sim_2:
+            sim_2 = Levenshtein.ratio(supplier_name_ocr.lower(), name.lower())
             name_find_2 = name
 
+    print(name_find_1, sim_1)
+    print(name_find_2, sim_2)
+    print(supplierName_list[ouID][0])
     if (sim_1 > threshold) & (sim_2 > threshold):
         if sim_1 > sim_2:
             return name_find_1
@@ -216,14 +221,14 @@ def get_format_of_poNum(custID, custPoNumber_list):
                     elif char.isdigit():
                         typeOfchar = '\\d'
                     else:
-                        typeOfchar = '\\w'
+                        typeOfchar = '\\D'
                 else:
                     if (char == '-') & (typeOfchar != '-'):  # 可能為不同格式 or 不同長度
-                        typeOfchar = '\\w'
+                        typeOfchar = '\\D'
                     elif (char.isdigit() & (typeOfchar == '\\d' or typeOfchar.isdigit())) & (char != typeOfchar):
                         typeOfchar = '\\d'
                     elif char != typeOfchar:
-                        typeOfchar = '\\w'
+                        typeOfchar = '\\D'
             form.append(typeOfchar)
         po_num_format[length] = form
     return po_num_format
@@ -246,10 +251,10 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
     po_num_format = get_format_of_poNum(custID, custPoNumber_list)
     # check ocr by format
     po_num_ocr = ori_json['header']['custPoNumber']
+    custPoNumber = ''
     if po_num_ocr is not None:
         po_num_ocr = ''.join([item for item in list(
             dict.fromkeys(po_num_ocr.split(' ')))])  # drop duplicates
-        custPoNumber = ''
         #print('custPoNumber extracting...')
         for length in po_num_format:
             po_num_ocr_combs = get_combinations(po_num_ocr, length)
@@ -265,7 +270,7 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
                             if not string[i].isdigit():
                                 is_format = False
                                 break
-                        elif (po_num_format[length][i] == '\\w'):
+                        elif (po_num_format[length][i] == '\\D'):
                             if not string[i].isalnum():
                                 is_format = False
                                 break
@@ -273,11 +278,13 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
                         if (po_num_format[length][i] != '-'):
                             is_format = False
                             break
-                if is_format:
+                if is_format & (len(string) > len(custPoNumber)):
+                    #print(po_num_format[length], string)
                     custPoNumber = string
-
-        # print(custPoNumber)
-        return custPoNumber
+                    break
+        
+        print(po_num_ocr, custPoNumber)
+    return custPoNumber
 
 
 def gen_date(dt_ocr):
@@ -359,9 +366,9 @@ def address_sim(addr_ocr, address_list, custID, code, threshold=0.2):
                 # ADDRESS 2
                 addr3 = address_list[custID]['ADDRESS2'][idx]
   
-                sim1 = Levenshtein.ratio(addr_ocr, addr1)
-                sim2 = Levenshtein.ratio(addr_ocr, addr2)
-                sim3 = Levenshtein.ratio(addr_ocr, addr3)
+                sim1 = Levenshtein.ratio(addr_ocr.lower(), addr1.lower())
+                sim2 = Levenshtein.ratio(addr_ocr.lower(), addr2.lower())
+                sim3 = Levenshtein.ratio(addr_ocr.lower(), addr3.lower())
 
                 addrs = [addr1, addr2, addr3]
                 for idx, sim_i in enumerate([sim1, sim2, sim3]):
@@ -417,7 +424,12 @@ def gen_address(ori_json, custID, ouID, address_list, threshold):
             shipAddr, address_list, custID, 'DELIVER_TO')
         if deliverAddr_sim < threshold:
             deliverAddr = ''
-
+    print('ship addr similarity: {}'.format(shipAddr_sim))
+    print(shipAddr_ocr)
+    print(shipAddr)
+    print('bill addr similarity: {}'.format(billAddr_sim))
+    print(billAddr_ocr)
+    print(billAddr)
     return shipAddr, billAddr, deliverAddr
 
 
@@ -516,7 +528,8 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
                 form = False
                 break
             for i in range(length):
-                if (lineNum_ocr[i] != lineNum_format[length][i]) & (lineNum_format[length][i] != '\\d'):
+                if (lineNum_format[length][i] == '\\d') & (not lineNum_ocr[i].isdigit()):
+                    print(lineNum_format[length][i], lineNum_ocr[i], 'False')
                     form = False
                     break
             # 取格式較長的為主
@@ -533,7 +546,7 @@ def gen_lineNumber(line_ocr, custID, lineNumber_list):
                     form = False
                     break
                 for i in range(length):
-                    if (lineNum_ocr[i] != lineNum_format[length][i]) & (lineNum_format[length][i] != '\\d'):
+                    if (lineNum_format[length][i] == '\\d') & (not lineNum_ocr[i].isdigit()):
                         form = False
                         break
                 # 取格式較長的為主
@@ -563,34 +576,35 @@ def gen_custPartNo(line_ocr, custID, active_item):
     """
     partNo_ocr = line_ocr['custPartNo']
     custPartNo = ''
+    sim_item = 0.0
     print('searching item: %s' % (partNo_ocr))
     if partNo_ocr is not None:
         if len(partNo_ocr) < 4:
             pass
         else:
-            sim_custItem = 0
             # if accuracy of ocr result is 100%
             if (partNo_ocr in list(active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER'])) or (partNo_ocr in list(active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO'])):
                 return partNo_ocr
             for item in active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER']:
                 sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                 if sim_tmp > 0.9:
-                    sim_custItem = sim_tmp
-                    custPartNo = item
-                    return custPartNo
-                elif sim_tmp > sim_custItem:
-                    sim_custItem = sim_tmp
-                    custPartNo = item
-            sim_item = 0
-            for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
-                sim_tmp = Levenshtein.ratio(partNo_ocr, item)
-                if sim_tmp > 0.9:
                     sim_item = sim_tmp
                     custPartNo = item
-                    return custPartNo
+                    break
                 elif sim_tmp > sim_item:
                     sim_item = sim_tmp
                     custPartNo = item
+            # 客料相似度太低時，就找相對應的內料
+            if sim_item < 0.5:
+                for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
+                    sim_tmp = Levenshtein.ratio(partNo_ocr, item)
+                    if sim_tmp > 0.9:
+                        sim_item = sim_tmp
+                        custPartNo = item
+                        break
+                    elif sim_tmp > sim_item:
+                        sim_item = sim_tmp
+                        custPartNo = item
     else:
         partNo_ocr = line_ocr['lineNumber']  # 可能label到lineNumber中
         print('searching item:%s' % (partNo_ocr))
@@ -598,26 +612,33 @@ def gen_custPartNo(line_ocr, custID, active_item):
             if len(partNo_ocr) < 4:
                 pass
             else:
-                sim_custItem = 0
                 for item in active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER']:
                     sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                     if sim_tmp > 0.9:
-                        sim_custItem = sim_tmp
-                        custPartNo = item
-                        return custPartNo
-                    if sim_tmp > sim_custItem:
-                        sim_custItem = sim_tmp
-                        custPartNo = item
-                sim_item = 0
-                for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
-                    sim_tmp = Levenshtein.ratio(partNo_ocr, item)
-                    if sim_tmp > 0.9:
                         sim_item = sim_tmp
                         custPartNo = item
                         return custPartNo
-                    elif sim_tmp > sim_item:
+                    if sim_tmp > sim_item:
                         sim_item = sim_tmp
                         custPartNo = item
+                # 客料相似度太低時，就找相對應的內料
+                if sim_item < 0.5:
+                    for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
+                        sim_tmp = Levenshtein.ratio(partNo_ocr, item)
+                        if sim_tmp > 0.9:
+                            sim_item = sim_tmp
+                            custPartNo = item
+                            return custPartNo
+                        elif sim_tmp > sim_item:
+                            sim_item = sim_tmp
+                            custPartNo = item
+    print(custPartNo, sim_item)
+    if (custPartNo == '') & (partNo_ocr is not None):
+        if len(partNo_ocr) > 4:
+            custPartNo = partNo_ocr
+    # model標到奇怪的值的情況
+    elif ((custPartNo != '') & (sim_item < 0.5)):
+        custPartNo = ''
     return custPartNo
 
 
@@ -755,10 +776,9 @@ def extract_info(raw_json, file_name, mapping_list_all):
     print('line extracting...')
     # line
     output_json['line'] = []
-    count = 1
     request_date = ''
     for row in ori_json['line']:
-        print('line', count)
+        print('line')
         line_info = {}
         line_info['lineNumber'] = gen_lineNumber(row, custID, lineNumber_list)
         line_info['custPartNo'] = gen_custPartNo(row, custID, active_item)
@@ -770,12 +790,23 @@ def extract_info(raw_json, file_name, mapping_list_all):
             request_date = line_info['originalRequestDate']
         line_info['voQty'] = gen_voQty(row)
         output_json['line'].append(line_info)
-        count += 1
-    # update oringinalRequestDate (無腦補日期)
-    for k in range(len(output_json['line'])):
-        if ((output_json['line'][k]['originalRequestDate'] == '') or (output_json['line'][k]['originalRequestDate'] is None)):
-            output_json['line'][k]['originalRequestDate'] = request_date
-    
+
+    # check line
+    count = len(output_json['line'])
+    while count > 0:
+        for k in range(len(output_json['line'])):
+            # 若有3個欄位為空值則刪除此line
+            is_null = 0
+            for value in output_json['line'][k].values():
+                if (value == '') or (value == 0.0):
+                    is_null += 1
+            if is_null > 2: # if fo
+                del output_json['line'][k]
+                break
+            # update oringinalRequestDate (無腦補日期)
+            if ((output_json['line'][k]['originalRequestDate'] == '') or (output_json['line'][k]['originalRequestDate'] is None)):
+                output_json['line'][k]['originalRequestDate'] = request_date
+        count -= 1
     return output_json
 
 
