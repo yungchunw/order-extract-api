@@ -49,12 +49,3 @@ def gen_merge_json(json_list):
             if is_append:
                 output_json.append(json_i)
     return output_json
-
-
-if __name__ == '__main__':
-    """
-
-    undo
-
-    """
-    pass

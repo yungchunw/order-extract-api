@@ -41,12 +41,13 @@ def get_modelid(config, prefix_id):
     # Create the BlobServiceClient that is used to call the Blob service for the storage account
     client = BlobServiceClient.from_connection_string(conn_str=conn_str)
 
-    destination_file_name = "{}_training.fott".format(prefix_id)
-
-    # Create a blob client using the local file name as the name for the blob
-    blob_client = client.get_blob_client(container=container_name,
-                                         blob=destination_file_name)
     try:
+        destination_file_name = "{}_training.fott".format(prefix_id)
+
+        # Create a blob client using the local file name as the name for the blob
+        blob_client = client.get_blob_client(container=container_name,
+                                            blob=destination_file_name)
+    
         blob_data = blob_client.download_blob().readall()
 
         data = json.loads(blob_data)
@@ -54,5 +55,5 @@ def get_modelid(config, prefix_id):
         return data["trainRecord"]["modelInfo"]["modelId"]
     
     except Exception as e:
-        log_util.debug(e)
+        log_util.logger.error(e)
 

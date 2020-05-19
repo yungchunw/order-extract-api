@@ -4,6 +4,7 @@
 
 ### custom setting ###
 *.json
+*.out
 .DS_Store
 mapping_list/.DS_Store
 batch_extract.py
