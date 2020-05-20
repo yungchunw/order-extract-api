@@ -8,7 +8,7 @@ from requests import get, post
 from util_lib import log_util
 
 
-@log_util.debug
+
 def init_config(yaml_file_path):
     """
     init config from local yaml file
@@ -24,7 +24,6 @@ def init_config(yaml_file_path):
     return config
 
 
-@log_util.debug
 def get_modelid(config, prefix_id):
     """[summary]
     

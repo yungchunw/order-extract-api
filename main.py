@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import random
@@ -31,7 +30,7 @@ def init_config(yaml_file_path):
         config = yaml.load(stream, Loader=yaml.FullLoader)
     return config
 
-
+@log_util.debug
 def sync_to_azure(container_name, conn_str, data, file_name):
     """sync to azure blob
 
@@ -62,7 +61,6 @@ def sync_to_azure(container_name, conn_str, data, file_name):
         log_util.logger.error(e)
 
 
-@log_util.debug
 def file_analyze(config, model_id, data_bytes):
     """To get result of form recognizer 
 
@@ -90,25 +88,24 @@ def file_analyze(config, model_id, data_bytes):
 
     try:
         random_time = random.randint(10, 20)
-        print('random_time: {}s'.format(random_time))
+        log_util.logger.debug('random_time: {}s'.format(random_time))
         time.sleep(random_time)
 
         resp = post(url=post_url, data=data_bytes,
                     headers=headers, params=params)
         if resp.status_code != 202:
-            print("POST analyze failed:\n%s" % json.dumps(resp.json()))
+            log_util.logger.error("POST analyze failed:\n%s" % json.dumps(resp.json()))
             # quit()
-        print("POST analyze succeeded:\n%s" % resp.headers)
+        log_util.logger.debug("POST analyze succeeded:\n%s" % resp.headers)
         operation_url = resp.headers["operation-location"]
         return get_result(config, operation_url), random_time
+
     except Exception as e:
-        msg = "POST analyze failed:\n%s" % str(e)
-        print(msg)
-        log_util.logger.error(msg)
-        # quit()
+
+        log_util.logger.error("POST analyze failed:\n{}".format(e))
         return None
 
-
+@log_util.debug
 def get_result(config, operation_url):
     """To get result of form recognizer 
 
@@ -131,17 +128,17 @@ def get_result(config, operation_url):
                        "Ocp-Apim-Subscription-Key": apim_key})
             resp_json = resp.json()
             if resp.status_code != 200:
-                print("GET analyze results failed:\n%s" %
+                log_util.logger.error("GET analyze results failed:\n%s" %
                       json.dumps(resp_json))
                 # quit()
                 return None
             status = resp_json["status"]
             if status == "succeeded":
-                #print("Analysis succeeded:\n%s" % json.dumps(resp_json))
+                log_util.logger.debug("Analysis succeeded")
                 # quit()
                 return resp_json
             if status == "failed":
-                print("Analysis failed:\n%s" % json.dumps(resp_json))
+                log_util.logger.error("Analysis failed:\n%s" % json.dumps(resp_json))
                 # quit()
                 return None
             # Analysis still running. Wait and retry.
@@ -154,7 +151,8 @@ def get_result(config, operation_url):
             log_util.logger.error(msg)
             # quit()
             return None
-    print("Analyze operation did not complete within the allocated time.")
+
+    log_util.logger.debug("Analyze operation did not complete within the allocated time.")
     return None
 
 
@@ -174,7 +172,7 @@ def process(fp, prefix_id, azure=False):
     container_name = config['azure_blob']['output']
     conn_str = config['azure_blob']['conn_str']
 
-    print('mapping list loading...')
+    log_util.logger.debug('mapping list loading...')
     mapping_list_all = load_mapping_list()  # mapping list loading
 
 
@@ -184,10 +182,11 @@ def process(fp, prefix_id, azure=False):
 
     model_id = fott_parsing.get_modelid(config, prefix_id)
 
-    print(prefix_id, model_id)
+    log_util.logger.debug("prefix_id:{} | model_id:{}".format(prefix_id, model_id))
+
     inputpdf = PdfFileReader(open(fp, "rb"), strict=False)
-    log_util.logger.debug("PDF file {} with {} of pages".format(
-        pdf_name, inputpdf.numPages))
+
+    log_util.logger.debug("PDF file {} with {} of pages".format(pdf_name, inputpdf.numPages))
 
     json_list = []
     try:
@@ -200,25 +199,23 @@ def process(fp, prefix_id, azure=False):
         for i in range(inputpdf.numPages):
             output = PdfFileWriter()
             output.addPage(inputpdf.getPage(i))
-            tmp_file = os.path.join(tmp_path,"tmp.pdf")
+            tmp_file = os.path.join(tmp_path,"{}_{}.pdf".format(pdf_name,i))
             with open(tmp_file, "wb") as outputStream:
                 output.write(outputStream)
 
             with open(tmp_file, "rb") as f:
                 data_bytes = f.read()
 
-            output_json_azure, random_time = file_analyze(
-                config, model_id, data_bytes)
-            ouput_json = extract_info(
-                output_json_azure, pdf_name, mapping_list_all)
+            output_json_azure, random_time = file_analyze(config, model_id, data_bytes)
+
+            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all)
             json_list.append(ouput_json)
 
             file_name = './output/{}_{}.json'.format(pdf_name, i)
 
             # saving meatadata
             if azure:
-                data = json.dumps(output_json_azure,
-                                    indent=4, ensure_ascii=False)
+                data = json.dumps(output_json_azure, indent=4, ensure_ascii=False)
                 sync_to_azure(container_name, conn_str, data, file_name)
 
             else:
@@ -229,8 +226,7 @@ def process(fp, prefix_id, azure=False):
                     json.dump(output_json_azure, outfile,
                                 indent=4, ensure_ascii=False)
 
-            log_util.logger.debug(
-                "{} - {} seconds".format(pdf_name, (time.time() - start_time - random_time)))
+            log_util.logger.debug("{} - {} seconds".format(pdf_name, (time.time() - start_time - random_time)))
 
         final_json = gen_merge_json(json_list)
 
@@ -249,7 +245,6 @@ def process(fp, prefix_id, azure=False):
             return final_json
 
     except Exception as e:
-        print(e)
         log_util.logger.error(e)
         log_util.logger.debug("{} - 999 seconds".format(pdf_name))
         return None
