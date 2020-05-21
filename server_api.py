@@ -8,10 +8,17 @@ from util_lib import log_util
 
 ALLOWED_EXTENSIONS = {'pdf', 'PDF'}
 ALLOWED_MIME_TYPES = {'application/pdf'}
-
+PATH = {'UPLOADS':'./upload_pdf',
+        'TEMP':'./tmp',
+        'OUTPUT':'./output',
+        'FINAL':'./Final_Json'}
 
 app = Flask(__name__)
-app.config['UPLOADS_PATH'] = './upload_pdf'
+
+def check_path():
+    for key, value in PATH.items():
+        if not os.path.exists(value):
+            os.mkdir(value)
 
 def is_allowed_file(file):
     if '.' in file.filename:
@@ -31,13 +38,14 @@ def is_allowed_file(file):
 
 @app.route('/process', methods=['POST'])
 def process():
+
     if request.method == "POST":
-        
+        check_path()
         f = request.files["data"]
         prefix_id = request.args.get('prefix_id')
         # creating a pdf file object 
         pdf_name = secure_filename(f.filename)
-        pdf_path = os.path.join(app.config['UPLOADS_PATH'],pdf_name)
+        pdf_path = os.path.join(PATH['UPLOADS'],pdf_name)
         parse_id = str(uuid.uuid4())[:8]
 
         extras = {'pdfname':pdf_name, 'parse_id':parse_id}

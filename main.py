@@ -14,6 +14,11 @@ from information_extract import (  # extract information of ocr_result
 from merge_json import gen_merge_json  # merge json
 from util_lib import log_util
 
+PATH = {'UPLOADS':'./upload_pdf',
+        'TEMP':'./tmp',
+        'OUTPUT':'./output',
+        'FINAL':'./Final_Json'}
+
 
 @log_util.debug
 def init_config(yaml_file_path):
@@ -190,7 +195,7 @@ def process(fp, prefix_id, extras, azure=False):
     json_list = []
     try:
         tmp_uuid = extras['parse_id']
-        tmp_path = './tmp/{}'.format(tmp_uuid)
+        tmp_path = os.path.join(PATH['TEMP'],tmp_uuid)
 
         if not os.path.exists(tmp_path):
                 os.mkdir(tmp_path)
@@ -210,18 +215,16 @@ def process(fp, prefix_id, extras, azure=False):
             ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all, extras)
             json_list.append(ouput_json)
 
-            file_name = './output/{}_{}.json'.format(pdf_name, i)
+            file_name = '{}_{}.json'.format(pdf_name, i)
+            file_path = os.path.join(PATH['OUTPUT'],file_name)
 
             # saving meatadata
             if azure:
                 data = json.dumps(output_json_azure, indent=4, ensure_ascii=False)
-                sync_to_azure(container_name, conn_str, data, file_name)
+                sync_to_azure(container_name, conn_str, data, file_path)
 
             else:
-                if not os.path.exists('./output'):
-                    os.mkdir('./output')
-
-                with open(file_name, 'w') as outfile:
+                with open(file_path, 'w') as outfile:
                     json.dump(output_json_azure, outfile,
                                 indent=4, ensure_ascii=False)
 
@@ -229,16 +232,15 @@ def process(fp, prefix_id, extras, azure=False):
 
         final_json = gen_merge_json(json_list, extras)
 
-        final_file_name = './Final_Json/{}.json'.format(pdf_name)
+        final_file_name = '{}.json'.format(pdf_name)
+        final_file_path = os.path.join(PATH['FINAL'],final_file_name)
+
         if azure:
             data = json.dumps(final_json, indent=4, ensure_ascii=False)
-            sync_to_azure(container_name, conn_str, data, final_file_name)
+            sync_to_azure(container_name, conn_str, data, final_file_path)
 
         else:
-            if not os.path.exists('./Final_Json'):
-                os.mkdir('./Final_Json')
-
-            with open(final_file_name, 'w') as outfile:
+            with open(final_file_path, 'w') as outfile:
                 json.dump(final_json, outfile,
                             indent=4, ensure_ascii=False)
             return final_json
