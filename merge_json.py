@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from util_lib import log_util
 
-def gen_merge_json(json_list):
+@log_util.debug
+def gen_merge_json(json_list, extras):
     """merge json
     
     Arguments:
@@ -10,7 +12,7 @@ def gen_merge_json(json_list):
     Returns:
         merged json -- a json or list of json
     """
-    print('merging json...')
+    log_util.logger.debug('merging json...',extra=extras)
     header_list = ['buyerName', 'supplierName', 'poDate', 'custPoNumber', 
                        'shipAddr', 'billAddr', 'deliverAddr', 'payCurrency',
                        'paymentTerm', 'tax', 'tradeTerm']

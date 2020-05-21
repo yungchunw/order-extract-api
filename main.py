@@ -60,8 +60,8 @@ def sync_to_azure(container_name, conn_str, data, file_name):
     except Exception as e:
         log_util.logger.error(e)
 
-
-def file_analyze(config, model_id, data_bytes):
+@log_util.debug
+def file_analyze(config, model_id, data_bytes, extras):
     """To get result of form recognizer 
 
     Arguments:
@@ -88,25 +88,25 @@ def file_analyze(config, model_id, data_bytes):
 
     try:
         random_time = random.randint(10, 20)
-        log_util.logger.debug('random_time: {}s'.format(random_time))
+        log_util.logger.debug('random_time: {}s'.format(random_time), extra=extras)
         time.sleep(random_time)
 
         resp = post(url=post_url, data=data_bytes,
                     headers=headers, params=params)
         if resp.status_code != 202:
-            log_util.logger.error("POST analyze failed:\n%s" % json.dumps(resp.json()))
+            log_util.logger.error("POST analyze failed: %s" % json.dumps(resp.json()), extra=extras)
             # quit()
-        log_util.logger.debug("POST analyze succeeded:\n%s" % resp.headers)
+        log_util.logger.debug("POST analyze succeeded: %s" % resp.headers, extra=extras)
         operation_url = resp.headers["operation-location"]
-        return get_result(config, operation_url), random_time
+        return get_result(config, operation_url, extras), random_time
 
     except Exception as e:
 
-        log_util.logger.error("POST analyze failed:\n{}".format(e))
+        log_util.logger.error("POST analyze failed:{}".format(e), extra=extras)
         return None
 
 @log_util.debug
-def get_result(config, operation_url):
+def get_result(config, operation_url,extras):
     """To get result of form recognizer 
 
     Arguments:
@@ -129,16 +129,16 @@ def get_result(config, operation_url):
             resp_json = resp.json()
             if resp.status_code != 200:
                 log_util.logger.error("GET analyze results failed:\n%s" %
-                      json.dumps(resp_json))
+                      json.dumps(resp_json), extra=extras)
                 # quit()
                 return None
             status = resp_json["status"]
             if status == "succeeded":
-                log_util.logger.debug("Analysis succeeded")
+                log_util.logger.debug("Analysis succeeded", extra=extras)
                 # quit()
                 return resp_json
             if status == "failed":
-                log_util.logger.error("Analysis failed:\n%s" % json.dumps(resp_json))
+                log_util.logger.error("Analysis failed:\n%s" % json.dumps(resp_json), extra=extras)
                 # quit()
                 return None
             # Analysis still running. Wait and retry.
@@ -146,18 +146,16 @@ def get_result(config, operation_url):
             n_try += 1
             wait_sec = min(2*wait_sec, max_wait_sec)
         except Exception as e:
-            msg = "GET analyze results failed:\n%s" % str(e)
-            print(msg)
-            log_util.logger.error(msg)
+            log_util.logger.error("GET analyze results failed:{}".format(e), extra=extras)
             # quit()
             return None
 
-    log_util.logger.debug("Analyze operation did not complete within the allocated time.")
+    log_util.logger.debug("Analyze operation did not complete within the allocated time.", extra=extras)
     return None
 
 
 @log_util.debug
-def process(fp, prefix_id, azure=False):
+def process(fp, prefix_id, extras, azure=False):
     """POST multiple pdf files from /data to API endpoint
 
     Arguments:
@@ -172,7 +170,7 @@ def process(fp, prefix_id, azure=False):
     container_name = config['azure_blob']['output']
     conn_str = config['azure_blob']['conn_str']
 
-    log_util.logger.debug('mapping list loading...')
+    log_util.logger.debug('mapping list loading...',extra=extras)
     mapping_list_all = load_mapping_list()  # mapping list loading
 
 
@@ -182,15 +180,16 @@ def process(fp, prefix_id, azure=False):
 
     model_id = fott_parsing.get_modelid(config, prefix_id)
 
-    log_util.logger.debug("prefix_id:{} | model_id:{}".format(prefix_id, model_id))
+    log_util.logger.debug("prefix_id : {}, model_id : {}".format(prefix_id, model_id),extra=extras)
+
 
     inputpdf = PdfFileReader(open(fp, "rb"), strict=False)
 
-    log_util.logger.debug("PDF file {} with {} of pages".format(pdf_name, inputpdf.numPages))
+    log_util.logger.debug("PDF file {} with {} of pages".format(pdf_name, inputpdf.numPages),extra=extras)
 
     json_list = []
     try:
-        tmp_uuid = str(uuid.uuid4())
+        tmp_uuid = extras['parse_id']
         tmp_path = './tmp/{}'.format(tmp_uuid)
 
         if not os.path.exists(tmp_path):
@@ -206,9 +205,9 @@ def process(fp, prefix_id, azure=False):
             with open(tmp_file, "rb") as f:
                 data_bytes = f.read()
 
-            output_json_azure, random_time = file_analyze(config, model_id, data_bytes)
+            output_json_azure, random_time = file_analyze(config, model_id, data_bytes, extras)
 
-            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all)
+            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all, extras)
             json_list.append(ouput_json)
 
             file_name = './output/{}_{}.json'.format(pdf_name, i)
@@ -226,9 +225,9 @@ def process(fp, prefix_id, azure=False):
                     json.dump(output_json_azure, outfile,
                                 indent=4, ensure_ascii=False)
 
-            log_util.logger.debug("{} - {} seconds".format(pdf_name, (time.time() - start_time - random_time)))
+            log_util.logger.debug("{} seconds".format((time.time() - start_time - random_time)),extra=extras)
 
-        final_json = gen_merge_json(json_list)
+        final_json = gen_merge_json(json_list, extras)
 
         final_file_name = './Final_Json/{}.json'.format(pdf_name)
         if azure:
@@ -245,6 +244,6 @@ def process(fp, prefix_id, azure=False):
             return final_json
 
     except Exception as e:
-        log_util.logger.error(e)
-        log_util.logger.debug("{} - 999 seconds".format(pdf_name))
+        log_util.logger.error(e,extra=extras)
+        log_util.logger.debug("999 seconds",extra=extras)
         return None

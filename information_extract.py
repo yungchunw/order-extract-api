@@ -13,7 +13,7 @@ from hanziconv import HanziConv
 #from fuzzywuzzy import fuzz
 #sim = round(fuzz.token_sort_ratio(ocr_result, vlue),3)
 from format_transform import gen_defined_output
-
+from util_lib import log_util
 
 # --------------------functions--------------------
 
@@ -718,8 +718,8 @@ def gen_voQty(line_ocr):
     else:
         return 0
 
-
-def extract_info(raw_json, file_name, mapping_list_all):
+@log_util.debug
+def extract_info(raw_json, file_name, mapping_list_all, extras):
     """
     main function of information_extract.py.
     
@@ -752,7 +752,7 @@ def extract_info(raw_json, file_name, mapping_list_all):
     key = custID + '_' + ouID
 
     output_json = {}
-    print('header extracting...')
+    log_util.logger.debug('header extracting...', extra=extras)
     # header
     output_json['header'] = {}
     output_json['header']['buyerName'] = gen_buyerName(custID, buyerName_list)
@@ -773,7 +773,7 @@ def extract_info(raw_json, file_name, mapping_list_all):
     output_json['header']['tradeTerm'] = gen_term(
         ori_json, custID, ouID, tradeTerm_list, 'tradeTerm')
 
-    print('line extracting...')
+    log_util.logger.debug('line extracting...', extra=extras)
     # line
     output_json['line'] = []
     request_date = ''

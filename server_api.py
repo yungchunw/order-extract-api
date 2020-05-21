@@ -4,14 +4,13 @@ import magic
 import uuid
 from flask import Flask, request, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
-
+from util_lib import log_util
 
 ALLOWED_EXTENSIONS = {'pdf', 'PDF'}
 ALLOWED_MIME_TYPES = {'application/pdf'}
 
 
 app = Flask(__name__)
-app.debug=True
 app.config['UPLOADS_PATH'] = './upload_pdf'
 
 def is_allowed_file(file):
@@ -36,14 +35,16 @@ def process():
         
         f = request.files["data"]
         prefix_id = request.args.get('prefix_id')
+        # creating a pdf file object 
+        pdf_name = secure_filename(f.filename)
+        pdf_path = os.path.join(app.config['UPLOADS_PATH'],pdf_name)
+        parse_id = str(uuid.uuid4())[:8]
+
+        extras = {'pdfname':pdf_name, 'parse_id':parse_id}
 
         if f and is_allowed_file(f):
-            # creating a pdf file object 
-            pdf_name = secure_filename(f.filename)
-            pdf_path = os.path.join(app.config['UPLOADS_PATH'],pdf_name)
-            parse_id = str(uuid.uuid4())[:8]
-
-            print("{} - {} - File recieved, start processing.".format(parse_id, pdf_name))
+            
+            log_util.logger.debug("File recieved, start processing.", extra=extras)
             
             f.stream.seek(0)
             f.save(pdf_path)
@@ -52,15 +53,15 @@ def process():
                 if prefix_id is None:
                     prefix_id = pdf_name.split('_')[0]
 
-                result = main.process(pdf_path, prefix_id)
+                result = main.process(pdf_path, prefix_id, extras)
 
-                print("{} - {} - Process successfully completed.".format(parse_id, pdf_name))
+                log_util.logger.debug("Process successfully completed.", extra=extras)
             
                 resp = jsonify(result)
                 resp.status_code = 200
 
             except Exception as e:
-                print("{} - {} - Something wrong. Details: {}".format(parse_id, pdf_name,e))
+                log_util.logger.error("Something wrong. Details: {}".format(e), extra=extras)
                 message = {
                     'status': 500,
                     'message': 'Undefine error found. Please check log for details.'
@@ -69,7 +70,7 @@ def process():
                 resp.status_code = 500
 
         else:
-            print("No file uploaded!")
+            log_util.logger.warning("No file uploaded!", extra=extras)
             message = {
                     'status': 400,
                     'message': 'No file uploaded.'
@@ -80,9 +81,12 @@ def process():
         return resp
         
     else:
-        print("Wrong request type!")
+        log_util.logger.warning("Wrong request type!", extra=extras)
         
     
 
 if __name__ == "__main__":
-    app.run()
+    from werkzeug.contrib.fixers import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app)
+    # log_util.logger.info("Gunicorn servcie activate!")
+    app.run(host = '0.0.0.0', use_reloader = False,debug=True, threaded=True)
