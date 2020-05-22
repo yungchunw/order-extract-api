@@ -25,8 +25,11 @@ class gen_defined_output:
                        'shipAddr', 'billAddr', 'deliverAddr', 'payCurrency',
                        'paymentTerm', 'tax', 'tradeTerm']
         for col in header_list:
-            if result[col] != None:
-                output_json['header'][col] = result[col]['text']
+            if col in result.keys(): # 確認此標籤是否存在
+                if result[col] != None:
+                    output_json['header'][col] = result[col]['text']
+                else:
+                    output_json['header'][col] = None
             else:
                 output_json['header'][col] = None
         # line
@@ -39,8 +42,11 @@ class gen_defined_output:
         for idx in range(1, count+1):
             line_info = {}
             for col in line_list:
-                if result[col + '#' + str(idx)] != None:
-                    line_info[col] = result[col + '#' + str(idx)]['text']
+                if (col + '#' + str(idx)) in result.keys(): # 確認此標籤是否存在
+                    if result[col + '#' + str(idx)] != None:
+                        line_info[col] = result[col + '#' + str(idx)]['text']
+                    else:
+                        line_info[col] = None
                 else:
                     line_info[col] = None
             output_json['line'].append(line_info)

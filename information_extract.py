@@ -13,7 +13,7 @@ from hanziconv import HanziConv
 #from fuzzywuzzy import fuzz
 #sim = round(fuzz.token_sort_ratio(ocr_result, vlue),3)
 from format_transform import gen_defined_output
-from util_lib import log_util
+
 
 # --------------------functions--------------------
 
@@ -168,12 +168,12 @@ def gen_supplierName(ori_json, ouID, supplierName_all, supplierName_list, thresh
         if Levenshtein.ratio(supplier_name_ocr.lower(), name.lower()) > sim_2:
             sim_2 = Levenshtein.ratio(supplier_name_ocr.lower(), name.lower())
             name_find_2 = name
-
+    sim_2 = sim_2 * 1.2 # 比對清單的值加權
     print(name_find_1, sim_1)
     print(name_find_2, sim_2)
     print(supplierName_list[ouID][0])
     if (sim_1 > threshold) & (sim_2 > threshold):
-        if sim_1 > sim_2:
+        if sim_1 >= sim_2:
             return name_find_1
         else:
             return name_find_2
@@ -216,19 +216,20 @@ def get_format_of_poNum(custID, custPoNumber_list):
             for poNum in length_dict[length]:
                 char = poNum[i]
                 if typeOfchar == '':  # first time
-                    if char == '-':
+                    if not char.isalnum(): # 如果不是數字與字母, ex: -, (, ), ...
                         typeOfchar = char
                     elif char.isdigit():
                         typeOfchar = '\\d'
-                    else:
-                        typeOfchar = '\\D'
+                    elif char.isalnum():
+                        typeOfchar = '\\w'
+
                 else:
-                    if (char == '-') & (typeOfchar != '-'):  # 可能為不同格式 or 不同長度
-                        typeOfchar = '\\D'
+                    if (not char.isalnum()) & (typeOfchar != char): # 如果不是數字與字母, 且格式不同!
+                        typeOfchar = '\\W'
                     elif (char.isdigit() & (typeOfchar == '\\d' or typeOfchar.isdigit())) & (char != typeOfchar):
                         typeOfchar = '\\d'
-                    elif char != typeOfchar:
-                        typeOfchar = '\\D'
+                    elif char != typeOfchar: 
+                        typeOfchar = '\\w'
             form.append(typeOfchar)
         po_num_format[length] = form
     return po_num_format
@@ -265,24 +266,19 @@ def gen_custPoNumber(ori_json, custID, custPoNumber_list):
                 for i in range(len(string)):
                     # 判別格式是否相符
                     #print(po_num_format[length][i], string[i])
-                    if string[i] != '-':
-                        if (po_num_format[length][i] == '\\d'):
-                            if not string[i].isdigit():
-                                is_format = False
-                                break
-                        elif (po_num_format[length][i] == '\\D'):
-                            if not string[i].isalnum():
-                                is_format = False
-                                break
+                    if string[i].isalnum() :
+                        if (po_num_format[length][i] == '\\d') & (not string[i].isdigit()):
+                            is_format = False
+                            break
                     else:
-                        if (po_num_format[length][i] != '-'):
+                        if (po_num_format[length][i] != '\\W') & (po_num_format[length][i] != string[i]):
                             is_format = False
                             break
                 if is_format & (len(string) > len(custPoNumber)):
                     #print(po_num_format[length], string)
                     custPoNumber = string
                     break
-        
+        #print(po_num_format)
         print(po_num_ocr, custPoNumber)
     return custPoNumber
 
@@ -303,10 +299,16 @@ def gen_date(dt_ocr):
         for synta in ['/', ' ', '年', '月', '日']:
             dt_ocr = dt_ocr.replace(synta, '-')
         print(dt_ocr)
-        dt_ocr_combs = get_combinations(dt_ocr)
+        dt_tmp = ''
+        for char in dt_ocr:
+            if char.isalnum() or (char == '-'):
+                dt_tmp += char
+        #print(dt_tmp)
+        dt_ocr_combs = get_combinations(dt_tmp)
         date = ''
         for dt in dt_ocr_combs:
             if len(dt) > 7:
+                #print(dt_i)
                 try:
                     dt = parse(dt)  # 解析日期時間
                     if len(str(dt.year)) == 3:
@@ -351,33 +353,57 @@ def address_sim(addr_ocr, address_list, custID, code, threshold=0.2):
         the address in address_list which has highest similarity, similarity 
 
     """
+    zhPattern = re.compile(u'[\u4e00-\u9fa5]+') # 檢查是否包含中文
     sim = 0
     addr_find = ''
     if (addr_ocr is not None) & (addr_ocr != ''):
         addr_ocr = HanziConv.toTraditional(addr_ocr)  # ocr地址轉換為繁體
         for idx in range(len(address_list[custID]['SITE_USE_CODE'])):
-            if address_list[custID]['SITE_USE_CODE'][idx] == code:
+            if address_list[custID]['SITE_USE_CODE'][idx] == code: # 分為SHIP_TO, BILL_TO, DELIVER_TO
                 # ADDRESS 2, 3, 4
                 addr1 = address_list[custID]['ADDRESS2'][idx] + \
                     address_list[custID]['ADDRESS3'][idx] + address_list[custID]['ADDRESS4'][idx]
-                # ADDRESS 2, 3
-                addr2 = address_list[custID]['ADDRESS2'][idx] + \
-                    address_list[custID]['ADDRESS3'][idx]
-                # ADDRESS 2
-                addr3 = address_list[custID]['ADDRESS2'][idx]
-  
-                sim1 = Levenshtein.ratio(addr_ocr.lower(), addr1.lower())
-                sim2 = Levenshtein.ratio(addr_ocr.lower(), addr2.lower())
-                sim3 = Levenshtein.ratio(addr_ocr.lower(), addr3.lower())
-
-                addrs = [addr1, addr2, addr3]
-                for idx, sim_i in enumerate([sim1, sim2, sim3]):
-                    if sim_i > sim:
-                        sim = sim_i
-                        addr_find = addrs[idx]
                 
-            
-      
+                # sim 1
+                sim_1 = Levenshtein.ratio(addr_ocr.lower(), addr1.lower())
+                # sim 2
+                if len(addr1) > 5:
+                    count_same = 0
+                    for char in addr1:
+                        if char.lower() in addr_ocr.lower():
+                            count_same += 1
+                    sim_2 = count_same / len(addr1)
+                else:
+                    sim_2 = 0.0
+                
+                # similarity 綜合計算方式
+                if (sim_2 > 0.8):
+                    #print(addr1, addr_find)
+                    if (zhPattern.search(addr1) is not None) & (zhPattern.search(addr_find) is not None) :
+                        sim_tmp = sim_2
+                    elif (zhPattern.search(addr1) is not None) & (zhPattern.search(addr_find) is None):
+                        sim_tmp = sim_2
+                    elif (zhPattern.search(addr1) is None) & (zhPattern.search(addr_find) is None):
+                        sim_tmp = Levenshtein.ratio(addr1.lower(), addr_ocr.lower())
+                    else:
+                        sim_tmp = sim_1 * sim_2
+                else:
+                    sim_tmp = sim_1 * sim_2
+                
+                # 取相似度高之地址
+                if (sim_tmp >= sim):
+                    sim = sim_tmp
+                    addr_find = addr1
+                
+# =============================================================================
+#                 # debug 用
+#                 if (code == 'BILL_TO'):
+#                     print('{}\n'.format(addr_ocr))
+#                     print(addr1)
+#                     print(sim_1, sim_2)
+#                     print(sim_tmp)
+#                     print('-' * 50)
+# =============================================================================
         
     #print(addr_find, sim)
     return addr_find, sim
@@ -403,7 +429,13 @@ def gen_address(ori_json, custID, ouID, address_list, threshold):
     shipAddr_ocr = ori_json['header']['shipAddr']
     shipAddr, shipAddr_sim = address_sim(
         shipAddr_ocr, address_list, custID, 'SHIP_TO')
-
+    
+    if (shipAddr_sim < threshold):
+        if (shipAddr_ocr is not None):
+            shipAddr = shipAddr_ocr
+        else:
+            shipAddr = ''
+    
     # billAddr
     billAddr_ocr = ori_json['header']['billAddr']
     billAddr, billAddr_sim = address_sim(
@@ -412,8 +444,8 @@ def gen_address(ori_json, custID, ouID, address_list, threshold):
     if billAddr == '':
         billAddr, billAddr_sim = address_sim(
             shipAddr, address_list, custID, 'BILL_TO')
-        if billAddr_sim < threshold:
-            billAddr = ''
+    if billAddr_sim < threshold:
+        billAddr = ''
     # deliverAddr
     deliverAddr_ocr = ori_json['header']['deliverAddr']
     deliverAddr, deliverAddr_sim = address_sim(
@@ -422,8 +454,9 @@ def gen_address(ori_json, custID, ouID, address_list, threshold):
     if deliverAddr == '':
         deliverAddr, deliverAddr_sim = address_sim(
             shipAddr, address_list, custID, 'DELIVER_TO')
-        if deliverAddr_sim < threshold:
-            deliverAddr = ''
+    if deliverAddr_sim < threshold:
+        deliverAddr = ''
+    
     print('ship addr similarity: {}'.format(shipAddr_sim))
     print(shipAddr_ocr)
     print(shipAddr)
@@ -586,6 +619,11 @@ def gen_custPartNo(line_ocr, custID, active_item):
             if (partNo_ocr in list(active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER'])) or (partNo_ocr in list(active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO'])):
                 return partNo_ocr
             for item in active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER']:
+                # if item in ocr result, return item
+                if item in partNo_ocr:
+                    return item
+                elif partNo_ocr in item:
+                    return partNo_ocr
                 sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                 if sim_tmp > 0.9:
                     sim_item = sim_tmp
@@ -597,6 +635,11 @@ def gen_custPartNo(line_ocr, custID, active_item):
             # 客料相似度太低時，就找相對應的內料
             if sim_item < 0.5:
                 for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
+                    # if item in ocr result, return item
+                    if item in partNo_ocr:
+                        return item
+                    elif partNo_ocr in item:
+                        return partNo_ocr
                     sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                     if sim_tmp > 0.9:
                         sim_item = sim_tmp
@@ -613,6 +656,11 @@ def gen_custPartNo(line_ocr, custID, active_item):
                 pass
             else:
                 for item in active_item[active_item.CUSTOMER_NUMBER == custID]['CUSTOMER_ITEM_NUMBER']:
+                    # if item in ocr result, return item
+                    if item in partNo_ocr:
+                        return item
+                    elif partNo_ocr in item:
+                        return partNo_ocr
                     sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                     if sim_tmp > 0.9:
                         sim_item = sim_tmp
@@ -624,6 +672,11 @@ def gen_custPartNo(line_ocr, custID, active_item):
                 # 客料相似度太低時，就找相對應的內料
                 if sim_item < 0.5:
                     for item in active_item[active_item.CUSTOMER_NUMBER == custID]['ITEM_NO']:
+                        # if item in ocr result, return item
+                        if item in partNo_ocr:
+                            return item
+                        elif partNo_ocr in item:
+                            return partNo_ocr
                         sim_tmp = Levenshtein.ratio(partNo_ocr, item)
                         if sim_tmp > 0.9:
                             sim_item = sim_tmp
@@ -659,7 +712,7 @@ def gen_sellingPrice(line_ocr):
         for syntax in ['$', ',']:  # remove syntax
             price_ocr = price_ocr.replace(syntax, '')
         price_ocr = ''.join([item for item in list(
-            dict.fromkeys(price_ocr.split(' ')))])  # drop duplicates
+            dict.fromkeys(price_ocr.split(' ')))[0]])  # drop duplicates
         sellingPrice = []
         for price_ocr_idx in price_ocr.split('.'):
             price_ocr_combs = get_combinations(price_ocr_idx)
@@ -718,8 +771,8 @@ def gen_voQty(line_ocr):
     else:
         return 0
 
-@log_util.debug
-def extract_info(raw_json, file_name, mapping_list_all, extras):
+
+def extract_info(raw_json, file_name, mapping_list_all):
     """
     main function of information_extract.py.
     
@@ -752,7 +805,7 @@ def extract_info(raw_json, file_name, mapping_list_all, extras):
     key = custID + '_' + ouID
 
     output_json = {}
-    log_util.logger.debug('header extracting...', extra=extras)
+    print('header extracting...')
     # header
     output_json['header'] = {}
     output_json['header']['buyerName'] = gen_buyerName(custID, buyerName_list)
@@ -763,7 +816,7 @@ def extract_info(raw_json, file_name, mapping_list_all, extras):
     output_json['header']['poDate'] = gen_date(ori_json['header']['poDate'])
     output_json['header']['shipAddr'], output_json['header']['billAddr'], \
         output_json['header']['deliverAddr'] = gen_address(
-            ori_json, custID, ouID, address_list, 0.6)
+            ori_json, custID, ouID, address_list, 0.5)
     output_json['header']['payCurrency'] = gen_payCurrency(
         key, payCurrency_list)
     output_json['header']['paymentTerm'] = gen_term(
@@ -773,7 +826,7 @@ def extract_info(raw_json, file_name, mapping_list_all, extras):
     output_json['header']['tradeTerm'] = gen_term(
         ori_json, custID, ouID, tradeTerm_list, 'tradeTerm')
 
-    log_util.logger.debug('line extracting...', extra=extras)
+    print('line extracting...')
     # line
     output_json['line'] = []
     request_date = ''
