@@ -212,7 +212,7 @@ def process(fp, prefix_id, extras, azure=False):
 
             output_json_azure, random_time = file_analyze(config, model_id, data_bytes, extras)
 
-            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all, extras)
+            ouput_json = extract_info(output_json_azure, pdf_name, mapping_list_all)
             json_list.append(ouput_json)
 
             file_name = '{}_{}.json'.format(pdf_name, i)
