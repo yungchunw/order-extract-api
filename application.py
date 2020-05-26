@@ -1,11 +1,18 @@
 import os
 import main
+<<<<<<< HEAD
 import filetype
+=======
+import magic
+>>>>>>> a9b1a15a45bdca08e7bc434500175a5035d3ca55
 import uuid
 from flask import Flask, request, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from util_lib import log_util
+<<<<<<< HEAD
 from werkzeug.contrib.fixers import ProxyFix
+=======
+>>>>>>> a9b1a15a45bdca08e7bc434500175a5035d3ca55
 
 ALLOWED_EXTENSIONS = {'pdf', 'PDF'}
 ALLOWED_MIME_TYPES = {'application/pdf'}
@@ -15,10 +22,13 @@ PATH = {'UPLOADS':'./upload_pdf',
         'FINAL':'./Final_Json'}
 
 app = Flask(__name__)
+<<<<<<< HEAD
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.debug = True
 app.use_reloader = False
 app.threaded = True
+=======
+>>>>>>> a9b1a15a45bdca08e7bc434500175a5035d3ca55
 
 def check_path():
     for key, value in PATH.items():
@@ -26,6 +36,7 @@ def check_path():
             os.mkdir(value)
 
 def is_allowed_file(file):
+<<<<<<< HEAD
 
     kind = filetype.guess(file.stream.read())
     
@@ -37,6 +48,17 @@ def is_allowed_file(file):
     if (
         kind.mime in ALLOWED_MIME_TYPES and
         kind.extension in ALLOWED_EXTENSIONS
+=======
+    if '.' in file.filename:
+        ext = file.filename.rsplit('.', 1)[1].lower()
+    else:
+        return False
+
+    mime_type = magic.from_buffer(file.stream.read(), mime=True)
+    if (
+        mime_type in ALLOWED_MIME_TYPES and
+        ext in ALLOWED_EXTENSIONS
+>>>>>>> a9b1a15a45bdca08e7bc434500175a5035d3ca55
     ):
         return True
 
@@ -97,9 +119,20 @@ def process():
         
     else:
         log_util.logger.warning("Wrong request type!", extra=extras)
+<<<<<<< HEAD
     
     return 'Please try again...'
 
 @app.route("/")
 def hello():
     return "<h1>Hello Order Extract API!</h1>"
+=======
+        
+    
+
+if __name__ == "__main__":
+    from werkzeug.contrib.fixers import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app)
+    # log_util.logger.info("Gunicorn servcie activate!")
+    app.run(host = '0.0.0.0', use_reloader = False,debug=True, threaded=True)
+>>>>>>> a9b1a15a45bdca08e7bc434500175a5035d3ca55
