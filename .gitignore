@@ -6,6 +6,8 @@
 *.json
 *.out
 .DS_Store
+.azure
+.deployment
 mapping_list/.DS_Store
 batch_extract.py
 *.pdf
