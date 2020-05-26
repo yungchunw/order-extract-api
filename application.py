@@ -1,10 +1,11 @@
 import os
 import main
-import magic
+import filetype
 import uuid
 from flask import Flask, request, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from util_lib import log_util
+from werkzeug.contrib.fixers import ProxyFix
 
 ALLOWED_EXTENSIONS = {'pdf', 'PDF'}
 ALLOWED_MIME_TYPES = {'application/pdf'}
@@ -14,6 +15,10 @@ PATH = {'UPLOADS':'./upload_pdf',
         'FINAL':'./Final_Json'}
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app)
+app.debug = True
+app.use_reloader = False
+app.threaded = True
 
 def check_path():
     for key, value in PATH.items():
@@ -21,15 +26,17 @@ def check_path():
             os.mkdir(value)
 
 def is_allowed_file(file):
-    if '.' in file.filename:
-        ext = file.filename.rsplit('.', 1)[1].lower()
-    else:
+
+    kind = filetype.guess(file.stream.read())
+    
+    if kind is None:
+        print('Cannot guess file type!')
         return False
 
-    mime_type = magic.from_buffer(file.stream.read(), mime=True)
+
     if (
-        mime_type in ALLOWED_MIME_TYPES and
-        ext in ALLOWED_EXTENSIONS
+        kind.mime in ALLOWED_MIME_TYPES and
+        kind.extension in ALLOWED_EXTENSIONS
     ):
         return True
 
@@ -90,11 +97,9 @@ def process():
         
     else:
         log_util.logger.warning("Wrong request type!", extra=extras)
-        
     
+    return 'Please try again...'
 
-if __name__ == "__main__":
-    from werkzeug.contrib.fixers import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app)
-    # log_util.logger.info("Gunicorn servcie activate!")
-    app.run(host = '0.0.0.0', use_reloader = False,debug=True, threaded=True)
+@app.route("/")
+def hello():
+    return "<h1>Hello Order Extract API!</h1>"
